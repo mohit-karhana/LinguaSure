@@ -1,0 +1,78 @@
+# LinguaSure
+
+**Know where you stand. Know what to improve. Practise real situations. Become a better communicator.**
+
+LinguaSure is an AI-powered communication coach for people who already understand English but struggle when they have to speak — in interviews, meetings, and other situations that actually matter.
+
+It is not another English-learning app. It does not compete by being a better chatbot than ChatGPT. The product is a system that **measures** how you communicate, **identifies** specific weaknesses, puts you in **realistic situations**, and **tracks whether you improve**.
+
+## The problem
+
+Many people know grammar and vocabulary, then freeze in real conversations. They hesitate, translate in their head, stall on unexpected questions, and have no way to tell if they are getting better.
+
+Existing products focus on lessons, flashcards, or generic “practise English with AI.” That is not the gap.
+
+The gap is between *I know English* and *I can confidently communicate in English*.
+
+## Who it is for
+
+Working professionals who already understand English and need to perform in:
+
+- Job interviews
+- Standups, project updates, and manager conversations
+- Client calls and explanations under pressure
+
+It is not built for beginners learning English from zero, school curricula, or IELTS test prep.
+
+## How it works
+
+1. **Assess** — Speak in a real situation. The system scores fluency, grammar, vocabulary, response speed, clarity, and professional communication.
+2. **Diagnose** — You get a communication profile and a plain-language weakness: *you explain well, but you stall when the question is unexpected.*
+3. **Practise** — Roleplay interviews and workplace scenes. The AI plays the other person and asks follow-ups you did not rehearse.
+4. **Debrief** — After every session: scores, evidence, and one thing to work on next.
+5. **Repeat** — Retry the same scenario and see whether the score actually moved.
+
+Over time the coach remembers your patterns — filler words, recurring grammar mistakes, where you hesitate, which scenes you fail — instead of starting every conversation from zero.
+
+## What makes this different
+
+| ChatGPT and chat-practice apps | LinguaSure |
+| --- | --- |
+| “Practise English with me.” | Measure how you communicate. |
+| Open-ended conversation | Situations with unexpected follow-ups |
+| Subjective “that was good” | Repeatable scores you can retry against |
+| No memory of your weaknesses | A persistent communication profile |
+
+The AI model is the technology. The personalised improvement system is the product.
+
+## Scoring
+
+Scores are built in layers, so they stay explainable:
+
+1. **Acoustic / temporal** — speaking speed, pauses, filler words, response latency
+2. **Linguistic** — grammar and vocabulary from the transcript, always with examples
+3. **Communicative** — clarity, handling of unexpected questions, professional tone
+
+The live profile stays small (about six metrics). Pronunciation is treated carefully and is not mixed into the overall score until it is reliable.
+
+## Product direction
+
+The first wedge is **interview and workplace communication**, not a catalog of daily-life scenes.
+
+| Phase | Focus |
+| --- | --- |
+| Validate | Prove people will pay for measurement, not another chat partner |
+| The Loop | Scenario → speak → score → retry → see a delta |
+| The Coach | Persistent profile, progress over time, memory of mistakes |
+| The Journey | Personalised drills and calibrated communicative scores |
+| The Platform | Broader tracks (presentations, negotiation) and teams |
+
+Status: early product definition. Implementation has not started.
+
+## Positioning
+
+> ChatGPT lets you practise English. LinguaSure tells you where you stand, what to fix, puts you in the situation that matters, and proves you got better.
+
+## License
+
+Proprietary. All rights reserved.
