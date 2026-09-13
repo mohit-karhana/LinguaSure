@@ -67,11 +67,27 @@ The first wedge is **interview and workplace communication**, not a catalog of d
 | The Journey | Personalised drills and calibrated communicative scores |
 | The Platform | Broader tracks (presentations, negotiation) and teams |
 
-Status: early product definition. Implementation has not started.
+Status: live-talk MVP. You can start a realtime voice session with a coach. Scoring, profiles, and retry deltas are not built yet.
 
 ## Positioning
 
 > ChatGPT lets you practise English. LinguaSure tells you where you stand, what to fix, puts you in the situation that matters, and proves you got better.
+
+## Run the live-talk MVP
+
+The first implementation is a browser voice session on the [OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime). Your API key stays on a local server. The browser receives a short-lived ephemeral token, then talks over WebRTC.
+
+1. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
+2. Install and start both servers:
+
+```bash
+npm install
+npm run dev
+```
+
+3. Open [http://localhost:5173](http://localhost:5173), allow the microphone, and select **Start talking**.
+
+The coach greets you and stays in a live conversation. You can interrupt, mute, or end the session. A rolling transcript appears under the controls.
 
 ## License
 
