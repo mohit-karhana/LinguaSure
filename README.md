@@ -89,6 +89,47 @@ npm run dev
 
 The coach greets you and stays in a live conversation. You can interrupt, mute, or end the session. A rolling transcript appears under the controls.
 
+## Go live
+
+Browsers only allow the microphone on **localhost** or **HTTPS**. Putting the container on a raw `http://` IP will load the page, but **Start talking** will fail.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:3000](http://localhost:3000) in Chrome or Safari. Do not use `http://0.0.0.0:3000` or an in-app preview — those pages cannot access the microphone. Compose reads `OPENAI_API_KEY` from `.env` and overrides `PORT` to `3000` inside the container.
+
+Without Compose:
+
+```bash
+docker build -t linguasure .
+docker run --rm -p 3000:3000 --env-file .env -e HOST=0.0.0.0 -e PORT=3000 linguasure
+```
+
+### Production host
+
+Ship the same image to a host that terminates TLS for you:
+
+1. Set `OPENAI_API_KEY` as a secret, not in the image.
+2. Set `PUBLIC_ORIGIN` to your public URL, for example `https://app.example.com`.
+3. Let the platform inject `PORT`. The container already listens on `0.0.0.0`.
+
+| Host | What to do |
+| --- | --- |
+| [Railway](https://railway.app) | New service → Deploy from Dockerfile. Add the API key and `PUBLIC_ORIGIN`. |
+| [Render](https://render.com) | New Web Service → Docker. Same env vars. |
+| [Fly.io](https://fly.io) | `fly launch` in this repo, then `fly secrets set OPENAI_API_KEY=... PUBLIC_ORIGIN=https://<app>.fly.dev`. |
+| VPS | Run Compose behind [Caddy](https://caddyserver.com) or nginx and point a domain at it. |
+
+Without Docker, build once and serve the UI from the same Node process:
+
+```bash
+npm run build
+HOST=0.0.0.0 PORT=3000 NODE_ENV=production npm start
+```
+
 ## License
 
 Proprietary. All rights reserved.

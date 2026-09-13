@@ -1,8 +1,17 @@
 import "dotenv/config";
 import express from "express";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
+const host = process.env.HOST || "127.0.0.1";
+const distDir = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
+const allowedOrigins = (process.env.PUBLIC_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const SESSION_INSTRUCTIONS = `You are LinguaSure, a live communication coach for working professionals who already understand English.
 
@@ -19,15 +28,34 @@ Voice:
 Start: greet them briefly, then ask what they want to practise today — an interview, a standup, a client explanation, or just talking.`;
 
 app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("Permissions-Policy", "microphone=(self)");
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.path !== "/api/token" || allowedOrigins.length === 0) {
+    next();
+    return;
+  }
+
+  const origin = req.get("origin");
+  if (origin && !allowedOrigins.includes(origin)) {
+    res.status(403).json({ error: "Unexpected request origin" });
+    return;
+  }
+
+  next();
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/token", async (req, res) => {
+app.post("/api/token", async (_req, res) => {
   if (!process.env.OPENAI_API_KEY) {
     res.status(503).json({
-      error: "Set OPENAI_API_KEY in a .env file, then restart the server.",
+      error: "OPENAI_API_KEY is not configured on the server.",
     });
     return;
   }
@@ -77,6 +105,25 @@ app.post("/api/token", async (req, res) => {
   }
 });
 
-app.listen(port, "127.0.0.1", () => {
-  console.log(`LinguaSure token server on http://127.0.0.1:${port}`);
+if (existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      next();
+      return;
+    }
+    if (req.path.startsWith("/api/")) {
+      next();
+      return;
+    }
+    res.sendFile(join(distDir, "index.html"));
+  });
+}
+
+app.listen(port, host, () => {
+  const url =
+    host === "0.0.0.0" || host === "::"
+      ? `http://localhost:${port}`
+      : `http://${host}:${port}`;
+  console.log(`LinguaSure ready at ${url}`);
 });

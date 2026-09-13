@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+.env
+.ENV
+.env.*
+!.env.example
+*.log
+.DS_Store
+.cursor
+agent-transcripts
+README.md

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useVoiceSession } from "./hooks/useVoiceSession";
+import { microphoneHint } from "./lib/microphone";
 import "./App.css";
 
 const TURN_LABEL = {
@@ -13,6 +14,7 @@ export default function App() {
   const { status, turn, muted, messages, error, start, stop, toggleMute } =
     useVoiceSession();
   const live = status === "live";
+  const micHint = microphoneHint();
   const listRef = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
@@ -59,14 +61,15 @@ export default function App() {
             type="button"
             className="primary"
             onClick={start}
-            disabled={status === "connecting"}
+            disabled={status === "connecting" || Boolean(micHint)}
           >
             {status === "connecting" ? "Starting…" : "Start talking"}
           </button>
         )}
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {micHint ? <p className="error">{micHint}</p> : null}
+      {error && error !== micHint ? <p className="error">{error}</p> : null}
 
       <section className="transcript" aria-label="Live transcript">
         <div className="transcript-head">

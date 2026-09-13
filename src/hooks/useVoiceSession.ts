@@ -5,6 +5,7 @@ import {
 } from "@openai/agents/realtime";
 import { useCallback, useRef, useState } from "react";
 import { createCoach } from "../lib/coach";
+import { getMicrophoneStream } from "../lib/microphone";
 import { historyToTranscript, type TranscriptLine } from "../lib/transcript";
 
 export type SessionStatus = "idle" | "connecting" | "live" | "error";
@@ -68,11 +69,12 @@ export function useVoiceSession() {
     generationRef.current = generation;
 
     try {
+      const mediaStream = await getMicrophoneStream();
+      if (generation !== generationRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       const apiKey = await fetchEphemeralKey();
-      if (generation !== generationRef.current) return;
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
       if (generation !== generationRef.current) {
         mediaStream.getTracks().forEach((track) => track.stop());
         return;
