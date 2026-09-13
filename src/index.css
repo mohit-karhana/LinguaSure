@@ -37,6 +37,9 @@ button {
 }
 
 #root {
-  display: flex;
-  justify-content: center;
+  min-height: 100%;
+}
+
+a {
+  color: var(--accent);
 }

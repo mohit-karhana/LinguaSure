@@ -1,97 +1,61 @@
-import { useEffect, useRef } from "react";
-import { useVoiceSession } from "./hooks/useVoiceSession";
-import { microphoneHint } from "./lib/microphone";
+import { Navigate, Outlet, Route, Routes, Link } from "react-router-dom";
+import { useAuth } from "./hooks/useAuth";
+import Debrief from "./pages/Debrief";
+import History from "./pages/History";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Practice from "./pages/Practice";
 import "./App.css";
 
-const TURN_LABEL = {
-  idle: "Ready when you are",
-  listening: "Listening",
-  thinking: "Thinking",
-  speaking: "Speaking",
-} as const;
+function RequireAuth() {
+  const { ready, user } = useAuth();
+  if (!ready) {
+    return (
+      <main className="stage">
+        <p className="empty">Loading your profile…</p>
+      </main>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return <Outlet />;
+}
 
-export default function App() {
-  const { status, turn, muted, messages, error, start, stop, toggleMute } =
-    useVoiceSession();
-  const live = status === "live";
-  const micHint = microphoneHint();
-  const listRef = useRef<HTMLOListElement>(null);
-
-  useEffect(() => {
-    listRef.current?.lastElementChild?.scrollIntoView({
-      block: "nearest",
-      behavior: "smooth",
-    });
-  }, [messages]);
-
+function Shell() {
+  const { user, logout } = useAuth();
   return (
-    <main className="stage">
-      <header className="brand">
-        <p className="eyebrow">LinguaSure</p>
-        <h1>Talk live. Practise the moment that matters.</h1>
-        <p className="lede">
-          A realtime voice coach for interviews, standups, and the conversations
-          you freeze in. Speak naturally. Interrupt anytime.
-        </p>
-      </header>
-
-      <section className={`orb-wrap ${live ? `is-${turn}` : ""}`} aria-live="polite">
-        <div className="orb" />
-        <p className="orb-label">
-          {status === "connecting"
-            ? "Connecting…"
-            : live
-              ? TURN_LABEL[turn]
-              : "Not connected"}
-        </p>
-      </section>
-
-      <div className="controls">
-        {live ? (
-          <>
-            <button type="button" className="ghost" onClick={toggleMute}>
-              {muted ? "Unmute" : "Mute"}
-            </button>
-            <button type="button" className="danger" onClick={stop}>
-              End session
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className="primary"
-            onClick={start}
-            disabled={status === "connecting" || Boolean(micHint)}
-          >
-            {status === "connecting" ? "Starting…" : "Start talking"}
+    <div className="app">
+      <header className="topbar">
+        <Link to="/" className="brand-link">
+          LinguaSure
+        </Link>
+        <nav>
+          <Link to="/">Situations</Link>
+          <Link to="/history">History</Link>
+          {user?.picture ? <img src={user.picture} alt="" className="avatar" referrerPolicy="no-referrer" /> : null}
+          <span>{user?.name}</span>
+          <button type="button" className="ghost compact" onClick={() => void logout()}>
+            Sign out
           </button>
-        )}
-      </div>
+        </nav>
+      </header>
+      <Outlet />
+    </div>
+  );
+}
 
-      {micHint ? <p className="error">{micHint}</p> : null}
-      {error && error !== micHint ? <p className="error">{error}</p> : null}
-
-      <section className="transcript" aria-label="Live transcript">
-        <div className="transcript-head">
-          <h2>Live transcript</h2>
-          <span>{live ? "Streaming" : "Idle"}</span>
-        </div>
-        {messages.length === 0 ? (
-          <p className="empty">
-            Grant the microphone, then start talking. The coach will greet you
-            and follow the conversation.
-          </p>
-        ) : (
-          <ol ref={listRef}>
-            {messages.map((line) => (
-              <li key={line.id} className={line.role}>
-                <strong>{line.role === "user" ? "You" : "Coach"}</strong>
-                <p>{line.text}</p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </main>
+export default function App({ googleClientId }: { googleClientId: string }) {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login googleClientId={googleClientId} />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<Shell />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/practice/:sessionId" element={<Practice />} />
+          <Route path="/debrief/:sessionId" element={<Debrief />} />
+          <Route path="/history" element={<History />} />
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

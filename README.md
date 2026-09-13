@@ -67,7 +67,7 @@ The first wedge is **interview and workplace communication**, not a catalog of d
 | The Journey | Personalised drills and calibrated communicative scores |
 | The Platform | Broader tracks (presentations, negotiation) and teams |
 
-Status: live-talk MVP. You can start a realtime voice session with a coach. Scoring, profiles, and retry deltas are not built yet.
+Status: signed-in practice loop. Google login, situation chapters, live talk, saved scores, and a communication profile are in. Personalised drills over time are not.
 
 ## Positioning
 
@@ -77,17 +77,18 @@ Status: live-talk MVP. You can start a realtime voice session with a coach. Scor
 
 The first implementation is a browser voice session on the [OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime). Your API key stays on a local server. The browser receives a short-lived ephemeral token, then talks over WebRTC.
 
-1. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
-2. Install and start both servers:
+1. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`, `SESSION_SECRET`, and `GOOGLE_CLIENT_ID`.
+2. In Google Cloud, create a Web OAuth client. Add `http://localhost:5173` and `http://localhost:3000` (and `http://127.0.0.1` on those ports) as authorised JavaScript origins.
+3. Install and start both servers:
 
 ```bash
 npm install
 npm run dev
 ```
 
-3. Open [http://localhost:5173](http://localhost:5173), allow the microphone, and select **Start talking**.
+4. Open [http://localhost:5173](http://localhost:5173) in Chrome or Safari, sign in with Google, pick a situation, and talk. End the session to save the scorecard.
 
-The coach greets you and stays in a live conversation. You can interrupt, mute, or end the session. A rolling transcript appears under the controls.
+Users, transcripts, and scores are stored in local SQLite at `data/linguasure.sqlite`.
 
 ## Go live
 
@@ -112,9 +113,10 @@ docker run --rm -p 3000:3000 --env-file .env -e HOST=0.0.0.0 -e PORT=3000 lingua
 
 Ship the same image to a host that terminates TLS for you:
 
-1. Set `OPENAI_API_KEY` as a secret, not in the image.
-2. Set `PUBLIC_ORIGIN` to your public URL, for example `https://app.example.com`.
-3. Let the platform inject `PORT`. The container already listens on `0.0.0.0`.
+1. Set `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, and `SESSION_SECRET` as secrets, not in the image.
+2. Add your public HTTPS origin to the Google OAuth client.
+3. Set `PUBLIC_ORIGIN` and `COOKIE_SECURE=1`.
+4. Let the platform inject `PORT`. The container already listens on `0.0.0.0`.
 
 | Host | What to do |
 | --- | --- |
