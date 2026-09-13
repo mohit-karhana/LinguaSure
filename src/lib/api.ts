@@ -24,6 +24,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ credential }),
     }),
+  signup: (body: { name: string; email: string; password: string }) =>
+    request<{ user: import("./types").User }>("/api/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  loginWithPassword: (body: { email: string; password: string }) =>
+    request<{ user: import("./types").User }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   sessions: () =>
     request<{ sessions: import("./types").PracticeSession[] }>("/api/sessions"),

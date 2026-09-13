@@ -9,6 +9,8 @@ type AuthContextValue = {
   error: string | null;
   refresh: () => Promise<void>;
   login: (credential: string) => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -43,6 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh,
       login: async (credential: string) => {
         await api.login(credential);
+        await refresh();
+      },
+      loginWithPassword: async (email: string, password: string) => {
+        await api.loginWithPassword({ email, password });
+        await refresh();
+      },
+      signup: async (name: string, email: string, password: string) => {
+        await api.signup({ name, email, password });
         await refresh();
       },
       logout: async () => {

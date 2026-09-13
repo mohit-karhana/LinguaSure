@@ -267,6 +267,77 @@ button:disabled {
   font-weight: 600;
 }
 
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.auth-tabs button {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.auth-tabs button.active {
+  background: var(--ink);
+  color: #16130f;
+  border-color: transparent;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+}
+
+.auth-form .primary {
+  width: 100%;
+}
+
+.auth-form .hint,
+.auth-split {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auth-split {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.auth-split::before,
+.auth-split::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 .google-btn {
   min-height: 44px;
 }

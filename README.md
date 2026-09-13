@@ -123,7 +123,102 @@ Ship the same image to a host that terminates TLS for you:
 | [Railway](https://railway.app) | New service → Deploy from Dockerfile. Add the API key and `PUBLIC_ORIGIN`. |
 | [Render](https://render.com) | New Web Service → Docker. Same env vars. |
 | [Fly.io](https://fly.io) | `fly launch` in this repo, then `fly secrets set OPENAI_API_KEY=... PUBLIC_ORIGIN=https://<app>.fly.dev`. |
-| VPS | Run Compose behind [Caddy](https://caddyserver.com) or nginx and point a domain at it. |
+| VPS / EC2 | Clone this repo and run Compose. Use Caddy (below) if you have a domain. |
+
+### AWS EC2 (Linux)
+
+On the instance security group, allow **22**, **80**, and **443**. Also allow **3000** only if you are testing without a domain.
+
+SSH in, then install Docker.
+
+**Ubuntu**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git docker.io docker-compose-v2
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+```
+
+**Amazon Linux 2023**
+
+```bash
+sudo dnf install -y git docker
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```
+
+Log out and back in so the `docker` group applies. Then fetch the repo and start it:
+
+```bash
+git clone https://github.com/mohit-karhana/LinguaSure.git
+cd LinguaSure
+cp .env.example .env
+nano .env
+```
+
+Set at least `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, and a long random `SESSION_SECRET`. If the repo is private, clone with SSH or a personal access token.
+
+**Without a domain (smoke test only)**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ec2.yml up -d --build
+```
+
+In the AWS console, open the instance → **Security** → security group → **Edit inbound rules**. Add:
+
+| Type | Port | Source |
+| --- | --- | --- |
+| HTTP | 80 | `0.0.0.0/0` |
+| Custom TCP | 3000 | `0.0.0.0/0` |
+
+Use the instance **Public IPv4 address** from the console (not the words `YOUR_EC2_IP`). Open `http://13.x.x.x` — port 80, no `:3000` required.
+
+On the instance, confirm the app is actually up:
+
+```bash
+docker compose ps
+curl -sS http://127.0.0.1:3000/api/health
+curl -sS ifconfig.me
+```
+
+The first curl should print `{"ok":true}`. The second prints the IP you should type in the browser. If health works on the box but the browser fails, the security group is still blocking you.
+
+Add that exact origin (`http://13.x.x.x`) in the Google OAuth client. Sign-in can work. The microphone will not — browsers block it on plain HTTP.
+
+**HTTPS (needed for the microphone)**
+
+You cannot turn `http://13.x.x.x:3000` into trusted HTTPS by itself. Let’s Encrypt needs a hostname. Use a domain you own, or a free DNS name that already points at the instance, such as `13.200.235.116.sslip.io`.
+
+Open ports **80** and **443** in the security group (`0.0.0.0/0`). Port 80 is required for the certificate challenge.
+
+Then in `.env`:
+
+```bash
+DOMAIN=13.200.235.116.sslip.io
+PUBLIC_ORIGIN=https://13.200.235.116.sslip.io
+COOKIE_SECURE=1
+```
+
+Or use your own domain and point its A record at `13.200.235.116`. Add that `https://…` origin in the Google OAuth client. Do not start `docker-compose.ec2.yml` at the same time — it also binds port 80. Start with TLS in front:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Caddy gets a Let’s Encrypt certificate and proxies to the app. Open `https://app.example.com`.
+
+Later updates:
+
+```bash
+cd LinguaSure
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
 Without Docker, build once and serve the UI from the same Node process:
 

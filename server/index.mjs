@@ -8,11 +8,17 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { CHAPTERS, getChapter, publicChapter } from "./chapters.mjs";
 import { db, publicUser } from "./db.mjs";
+import { hashPassword, normalizeEmail, validateSignup, verifyPassword } from "./password.mjs";
 import { buildScorecard, scoreAcoustic, scoreWithModel, summarizeProfile } from "./score.mjs";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
-const host = process.env.HOST || "127.0.0.1";
+const requestedHost = process.env.HOST || "127.0.0.1";
+const host =
+  process.env.NODE_ENV === "production" &&
+  (requestedHost === "127.0.0.1" || requestedHost === "localhost")
+    ? "0.0.0.0"
+    : requestedHost;
 const distDir = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const allowedOrigins = (process.env.PUBLIC_ORIGIN || "")
   .split(",")
@@ -22,7 +28,7 @@ const googleClient = process.env.GOOGLE_CLIENT_ID
   ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
   : null;
 
-const insertUser = db.prepare(`
+const insertGoogleUser = db.prepare(`
   INSERT INTO users (id, google_id, email, name, picture, created_at)
   VALUES (@id, @google_id, @email, @name, @picture, @created_at)
   ON CONFLICT(google_id) DO UPDATE SET
@@ -30,8 +36,17 @@ const insertUser = db.prepare(`
     name = excluded.name,
     picture = excluded.picture
 `);
+const insertPasswordUser = db.prepare(`
+  INSERT INTO users (id, email, name, password_hash, created_at)
+  VALUES (@id, @email, @name, @password_hash, @created_at)
+`);
 const selectUserByGoogle = db.prepare("SELECT * FROM users WHERE google_id = ?");
+const selectUserByEmail = db.prepare("SELECT * FROM users WHERE email = ?");
 const selectUserById = db.prepare("SELECT * FROM users WHERE id = ?");
+const linkGoogleId = db.prepare(`
+  UPDATE users SET google_id = @google_id, name = @name, picture = @picture
+  WHERE id = @id AND google_id IS NULL
+`);
 const insertSession = db.prepare(`
   INSERT INTO practice_sessions (id, user_id, chapter_id, status, started_at)
   VALUES (@id, @user_id, @chapter_id, 'live', @started_at)
@@ -93,7 +108,7 @@ app.use((req, res, next) => {
 function requireUser(req, res, next) {
   const user = req.session?.userId ? selectUserById.get(req.session.userId) : null;
   if (!user) {
-    res.status(401).json({ error: "Sign in with Google to continue." });
+    res.status(401).json({ error: "Sign in to continue." });
     return;
   }
   req.user = user;
@@ -150,21 +165,84 @@ app.post("/api/auth/google", async (req, res) => {
       return;
     }
 
-    insertUser.run({
-      id: randomUUID(),
-      google_id: payload.sub,
-      email: payload.email,
-      name: payload.name || payload.email,
-      picture: payload.picture || null,
-      created_at: new Date().toISOString(),
-    });
-    const user = selectUserByGoogle.get(payload.sub);
+    const email = normalizeEmail(payload.email);
+    const existing = selectUserByEmail.get(email);
+    if (existing && !existing.google_id) {
+      linkGoogleId.run({
+        id: existing.id,
+        google_id: payload.sub,
+        name: payload.name || existing.name,
+        picture: payload.picture || existing.picture,
+      });
+    } else {
+      insertGoogleUser.run({
+        id: randomUUID(),
+        google_id: payload.sub,
+        email,
+        name: payload.name || email,
+        picture: payload.picture || null,
+        created_at: new Date().toISOString(),
+      });
+    }
+    const user = selectUserByGoogle.get(payload.sub) || selectUserByEmail.get(email);
     req.session.userId = user.id;
     res.json({ user: publicUser(user) });
   } catch (error) {
     console.error("Google sign-in failed", error);
     res.status(401).json({ error: "Google sign-in could not be verified." });
   }
+});
+
+app.post("/api/auth/signup", async (req, res) => {
+  const parsed = validateSignup(req.body || {});
+  if (parsed.error) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  if (selectUserByEmail.get(parsed.email)) {
+    res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+    return;
+  }
+
+  try {
+    const id = randomUUID();
+    insertPasswordUser.run({
+      id,
+      email: parsed.email,
+      name: parsed.name,
+      password_hash: await hashPassword(parsed.password),
+      created_at: new Date().toISOString(),
+    });
+    req.session.userId = id;
+    res.status(201).json({ user: publicUser(selectUserById.get(id)) });
+  } catch (error) {
+    console.error("Signup failed", error);
+    res.status(500).json({ error: "Could not create the account." });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  const user = email ? selectUserByEmail.get(email) : null;
+
+  if (!user?.password_hash) {
+    res.status(401).json({
+      error: user?.google_id
+        ? "This account uses Google. Continue with Google."
+        : "Email or password is incorrect.",
+    });
+    return;
+  }
+
+  if (!(await verifyPassword(password, user.password_hash))) {
+    res.status(401).json({ error: "Email or password is incorrect." });
+    return;
+  }
+
+  req.session.userId = user.id;
+  res.json({ user: publicUser(user) });
 });
 
 app.post("/api/auth/logout", (req, res) => {
