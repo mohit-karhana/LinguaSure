@@ -30,6 +30,10 @@ export default function Practice() {
           navigate(`/debrief/${next.id}`, { replace: true });
           return;
         }
+        if (next.status === "abandoned") {
+          navigate("/", { replace: true });
+          return;
+        }
         setSession(next);
       })
       .catch((caught: unknown) => {
@@ -82,6 +86,8 @@ function LivePractice({
 }) {
   const navigate = useNavigate();
   const listRef = useRef<HTMLOListElement>(null);
+  const scoredRef = useRef(false);
+  const abandonGen = useRef(0);
   const { status, turn, muted, messages, error, start, stop, toggleMute } = useVoiceSession({
     sessionId: session.id,
     instructions: session.instructions || "",
@@ -95,22 +101,44 @@ function LivePractice({
     });
   }, [messages]);
 
+  useEffect(() => {
+    const generation = ++abandonGen.current;
+    return () => {
+      window.setTimeout(() => {
+        if (abandonGen.current !== generation || scoredRef.current) return;
+        void api.abandon(session.id).catch(() => {});
+      }, 400);
+    };
+  }, [session.id]);
+
   async function finish() {
     if (finishing) return;
     setFinishing(true);
     const payload = stop();
     try {
+      scoredRef.current = true;
       await api.complete(session.id, payload);
       navigate(`/debrief/${session.id}`);
     } catch (caught) {
+      scoredRef.current = false;
       setFinishing(false);
       window.alert(caught instanceof Error ? caught.message : "Could not save the score.");
     }
   }
 
+  function leave() {
+    if (live && !window.confirm("Leave without scoring? The call will end.")) return;
+    stop();
+    void api.abandon(session.id).catch(() => {});
+    navigate("/");
+  }
+
   return (
     <main className="stage">
       <p className="eyebrow">{session.chapter.title}</p>
+      <button type="button" className="text-link" onClick={leave}>
+        Back to situations
+      </button>
       <h1>{session.chapter.brief}</h1>
       <p className="lede">{session.chapter.situation}</p>
 
@@ -132,6 +160,9 @@ function LivePractice({
           <>
             <button type="button" className="ghost" onClick={toggleMute}>
               {muted ? "Unmute" : "Mute"}
+            </button>
+            <button type="button" className="ghost" onClick={leave}>
+              Leave
             </button>
             <button type="button" className="danger" onClick={() => void finish()}>
               End and score

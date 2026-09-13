@@ -41,6 +41,7 @@ db.exec(`
 `);
 
 migrateUsers();
+migrateProgress();
 
 function migrateUsers() {
   const columns = db.prepare("PRAGMA table_info(users)").all();
@@ -78,6 +79,24 @@ function migrateUsers() {
       ALTER TABLE users_migrated RENAME TO users;
     `);
     db.pragma("foreign_keys = ON");
+  }
+}
+
+function migrateProgress() {
+  const columns = new Set(
+    db.prepare("PRAGMA table_info(users)").all().map((column) => column.name),
+  );
+  if (!columns.has("unlock_metric")) {
+    db.exec("ALTER TABLE users ADD COLUMN unlock_metric TEXT");
+  }
+  if (!columns.has("unlock_threshold")) {
+    db.exec("ALTER TABLE users ADD COLUMN unlock_threshold INTEGER");
+  }
+  if (!columns.has("topic_order")) {
+    db.exec("ALTER TABLE users ADD COLUMN topic_order TEXT");
+  }
+  if (!columns.has("unlock_thresholds")) {
+    db.exec("ALTER TABLE users ADD COLUMN unlock_thresholds TEXT");
   }
 }
 

@@ -4,6 +4,25 @@ export type Chapter = {
   situation: string;
   brief: string;
   duration: string;
+  unlocked?: boolean;
+  hidden?: boolean;
+  best?: number | null;
+};
+
+export type UnlockMetric =
+  | "fluency"
+  | "responseSpeed"
+  | "grammar"
+  | "vocabulary"
+  | "clarity"
+  | "tone"
+  | "overall";
+
+export type Goal = {
+  metric: UnlockMetric;
+  threshold: number;
+  label: string;
+  thresholds: Record<UnlockMetric, number>;
 };
 
 export type User = {
@@ -83,6 +102,8 @@ export type Profile = {
 export type MeResponse = {
   user: User;
   profile: Profile;
+  goal: Goal;
+  metricOptions: Record<string, string>;
   chapters: Chapter[];
   recent: PracticeSession[];
 };

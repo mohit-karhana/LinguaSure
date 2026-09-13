@@ -379,6 +379,35 @@ button:disabled {
   color: var(--muted);
 }
 
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.text-link {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.session-static {
+  display: grid;
+  gap: 4px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.session-static span {
+  color: var(--muted);
+}
+
 .weakness,
 .next-focus {
   color: var(--ink);
@@ -423,6 +452,65 @@ button:disabled {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.chapter-card.locked {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.goal-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.goal-form.stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.goal-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.goal-metrics {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goal-metric {
+  display: grid;
+  grid-template-columns: auto 1fr 88px;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.goal-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.goal-form select,
+.goal-form input[type="number"] {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
 }
 
 .chapter-card strong {

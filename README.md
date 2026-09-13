@@ -100,6 +100,13 @@ Browsers only allow the microphone on **localhost** or **HTTPS**. Putting the co
 docker compose up --build
 ```
 
+If the build dies on `load metadata for docker.io/library/node:22-bookworm-slim`, Docker Hub is blocked or rate-limited. This repo pulls the same official image from Amazon ECR Public. Pre-pull it, then rebuild:
+
+```bash
+docker pull public.ecr.aws/docker/library/node:22-bookworm-slim
+docker compose up --build
+```
+
 Open [http://localhost:3000](http://localhost:3000) in Chrome or Safari. Do not use `http://0.0.0.0:3000` or an in-app preview — those pages cannot access the microphone. Compose reads `OPENAI_API_KEY` from `.env` and overrides `PORT` to `3000` inside the container.
 
 Without Compose:

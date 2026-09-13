@@ -35,6 +35,20 @@ export const api = {
       body: JSON.stringify(body),
     }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  updateGoal: (body: {
+    metric: string;
+    threshold?: number;
+    thresholds: Record<string, number>;
+  }) =>
+    request<{
+      goal: import("./types").Goal;
+      chapters: import("./types").Chapter[];
+    }>("/api/goal", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  resetHistory: () =>
+    request<{ ok: boolean }>("/api/history/reset", { method: "POST" }),
   sessions: () =>
     request<{ sessions: import("./types").PracticeSession[] }>("/api/sessions"),
   createSession: (chapterId: string) =>
@@ -48,6 +62,10 @@ export const api = {
     request<{ value: string }>("/api/token", {
       method: "POST",
       body: JSON.stringify({ sessionId }),
+    }),
+  abandon: (id: string) =>
+    request<{ session: import("./types").PracticeSession }>(`/api/sessions/${id}/abandon`, {
+      method: "POST",
     }),
   complete: (
     id: string,

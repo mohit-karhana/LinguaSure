@@ -3,7 +3,7 @@ import {
   RealtimeSession,
   type RealtimeItem,
 } from "@openai/agents/realtime";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { createCoach } from "../lib/coach";
 import { getMicrophoneStream } from "../lib/microphone";
@@ -59,15 +59,32 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
     };
   }, []);
 
-  const teardown = useCallback(() => {
+  const closeHardware = useCallback(() => {
     generationRef.current += 1;
-    sessionRef.current?.close();
+    try {
+      sessionRef.current?.close();
+    } catch {
+      // Already closed.
+    }
     sessionRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  }, []);
+
+  const teardown = useCallback(() => {
+    closeHardware();
     setTurn("idle");
     setMuted(false);
-  }, []);
+  }, [closeHardware]);
+
+  useEffect(() => {
+    const hangUp = () => closeHardware();
+    window.addEventListener("pagehide", hangUp);
+    return () => {
+      window.removeEventListener("pagehide", hangUp);
+      hangUp();
+    };
+  }, [closeHardware]);
 
   const start = useCallback(async () => {
     if (status === "connecting" || status === "live") return;

@@ -6,9 +6,17 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { CHAPTERS, getChapter, publicChapter } from "./chapters.mjs";
+import { getChapter, publicChapter } from "./chapters.mjs";
 import { db, publicUser } from "./db.mjs";
 import { hashPassword, normalizeEmail, validateSignup, verifyPassword } from "./password.mjs";
+import {
+  decorateChapters,
+  ensureTopicOrder,
+  isChapterUnlocked,
+  METRIC_LABELS,
+  normalizeGoal,
+  userGoal,
+} from "./progress.mjs";
 import { buildScorecard, scoreAcoustic, scoreWithModel, summarizeProfile } from "./score.mjs";
 
 const app = express();
@@ -250,14 +258,90 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
+const updateGoal = db.prepare(`
+  UPDATE users
+  SET unlock_metric = @unlock_metric,
+      unlock_threshold = @unlock_threshold,
+      unlock_thresholds = @unlock_thresholds
+  WHERE id = @id
+`);
+const deleteUserSessions = db.prepare("DELETE FROM practice_sessions WHERE user_id = ?");
+const resetTopicOrder = db.prepare("UPDATE users SET topic_order = NULL WHERE id = ?");
+const abandonLiveSessions = db.prepare(`
+  UPDATE practice_sessions
+  SET status = 'abandoned', ended_at = @ended_at
+  WHERE user_id = @user_id AND status = 'live'
+`);
+const abandonSession = db.prepare(`
+  UPDATE practice_sessions
+  SET status = 'abandoned', ended_at = @ended_at
+  WHERE id = @id AND user_id = @user_id AND status = 'live'
+`);
+
+function publicGoal(goal) {
+  return {
+    metric: goal.unlockMetric,
+    threshold: goal.unlockThreshold,
+    label: METRIC_LABELS[goal.unlockMetric],
+    thresholds: goal.thresholds,
+  };
+}
+
+function userProgress(user, scored) {
+  const goal = userGoal(user);
+  const order = ensureTopicOrder(db, user);
+  return {
+    goal: publicGoal(goal),
+    chapters: decorateChapters(order, scored, goal),
+  };
+}
+
 app.get("/api/me", requireUser, (req, res) => {
   const history = listSessions.all(req.user.id);
   const scored = listScoredSessions.all(req.user.id);
+  const progress = userProgress(req.user, scored);
   res.json({
     user: publicUser(req.user),
     profile: summarizeProfile(scored),
-    chapters: CHAPTERS.map(publicChapter),
+    goal: progress.goal,
+    metricOptions: METRIC_LABELS,
+    chapters: progress.chapters,
     recent: history.slice(0, 6).map(publicSession),
+  });
+});
+
+app.post("/api/goal", requireUser, (req, res) => {
+  const current = userGoal(req.user);
+  const incoming =
+    req.body?.thresholds && typeof req.body.thresholds === "object"
+      ? req.body.thresholds
+      : current.thresholds;
+  const goal = normalizeGoal(req.body?.metric, req.body?.threshold, incoming);
+  updateGoal.run({
+    id: req.user.id,
+    unlock_metric: goal.unlockMetric,
+    unlock_threshold: goal.unlockThreshold,
+    unlock_thresholds: JSON.stringify(goal.thresholds),
+  });
+  const user = selectUserById.get(req.user.id);
+  const scored = listScoredSessions.all(req.user.id);
+  res.json({
+    goal: publicGoal(goal),
+    chapters: userProgress(user, scored).chapters,
+  });
+});
+
+app.post("/api/history/reset", requireUser, (req, res) => {
+  deleteUserSessions.run(req.user.id);
+  resetTopicOrder.run(req.user.id);
+  const user = selectUserById.get(req.user.id);
+  const progress = userProgress(user, []);
+  res.json({
+    ok: true,
+    profile: summarizeProfile([]),
+    goal: progress.goal,
+    chapters: progress.chapters,
+    recent: [],
   });
 });
 
@@ -271,6 +355,19 @@ app.post("/api/sessions", requireUser, (req, res) => {
     res.status(400).json({ error: "Choose a valid situation." });
     return;
   }
+  const scored = listScoredSessions.all(req.user.id);
+  const order = ensureTopicOrder(db, req.user);
+  if (!isChapterUnlocked(order, scored, userGoal(req.user), chapter.id)) {
+    res.status(403).json({
+      error: "That situation is still locked. Hit your bar on the previous one first.",
+    });
+    return;
+  }
+
+  abandonLiveSessions.run({
+    user_id: req.user.id,
+    ended_at: new Date().toISOString(),
+  });
 
   const id = randomUUID();
   insertSession.run({
@@ -338,6 +435,22 @@ app.post("/api/token", requireUser, async (req, res) => {
     console.error("Token generation failed", error);
     res.status(500).json({ error: "Failed to create a realtime session token." });
   }
+});
+
+app.post("/api/sessions/:id/abandon", requireUser, (req, res) => {
+  const row = selectSession.get(req.params.id);
+  if (!row || row.user_id !== req.user.id) {
+    res.status(404).json({ error: "Session not found." });
+    return;
+  }
+  if (row.status === "live") {
+    abandonSession.run({
+      id: row.id,
+      user_id: req.user.id,
+      ended_at: new Date().toISOString(),
+    });
+  }
+  res.json({ session: publicSession(selectSession.get(row.id)) });
 });
 
 app.post("/api/sessions/:id/complete", requireUser, async (req, res) => {

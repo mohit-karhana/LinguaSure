@@ -1,4 +1,5 @@
-FROM node:22-bookworm-slim AS build
+# Official Node image via Amazon ECR Public — avoids Docker Hub metadata/rate-limit failures on EC2.
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -11,7 +12,7 @@ COPY index.html vite.config.ts tsconfig.json tsconfig.node.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
