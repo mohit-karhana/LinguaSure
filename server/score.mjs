@@ -1,12 +1,21 @@
 const FILLER_RE =
   /\b(um+|uh+|er+|ah+|like|you know|basically|actually|sort of|kind of|i mean)\b/gi;
 
+export const MIN_LINGUISTIC_WORDS = 40;
+export const MIN_ACOUSTIC_WORDS = 8;
+export const MIN_SPEAKING_MS = 3000;
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function wordCount(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function numOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clamp(parsed, 1, 100) : null;
 }
 
 export function collectFillers(text) {
@@ -27,12 +36,7 @@ export function scoreAcoustic(transcript, timings = {}) {
   const wpm = speakingMs > 0 ? (words / speakingMs) * 60_000 : 0;
   const fillers = collectFillers(userText);
   const per100 = words > 0 ? (fillers.length / words) * 100 : 0;
-
-  const fluency = clamp(100 - Math.abs((wpm || 130) - 145) * 0.7 - per100 * 4, 35, 97);
-  const responseSpeed = avgLatencyMs
-    ? clamp(100 - Math.max(0, avgLatencyMs - 900) / 40, 35, 97)
-    : 55;
-  const fillerScore = clamp(100 - per100 * 8, 30, 98);
+  const acousticReady = words >= MIN_ACOUSTIC_WORDS && speakingMs >= MIN_SPEAKING_MS;
 
   return {
     words,
@@ -42,45 +46,36 @@ export function scoreAcoustic(transcript, timings = {}) {
     fillerCount: fillers.length,
     fillerExamples: [...new Set(fillers)].slice(0, 6),
     per100Words: Number(per100.toFixed(1)),
-    fluency,
-    responseSpeed,
-    fillerScore,
+    fluency: acousticReady
+      ? clamp(100 - Math.abs(wpm - 145) * 0.7 - per100 * 4, 35, 97)
+      : null,
+    responseSpeed: avgLatencyMs
+      ? clamp(100 - Math.max(0, avgLatencyMs - 900) / 40, 35, 97)
+      : null,
+    fillerScore: words >= MIN_ACOUSTIC_WORDS ? clamp(100 - per100 * 8, 30, 98) : null,
   };
 }
 
-function fallbackLinguistic(acoustic) {
+function insufficientLinguistic() {
   return {
-    grammar: {
-      score: clamp(acoustic.fluency - 4, 40, 88),
-      examples: ["Not enough speech yet to quote a specific grammar miss."],
-    },
-    vocabulary: {
-      score: clamp(acoustic.fluency - 2, 40, 88),
-      examples: ["Keep the same situation and speak a little longer next time."],
-    },
-    clarity: {
-      score: clamp(acoustic.fluency, 40, 88),
-      note: "The transcript was too short to judge how clearly you made the point.",
-    },
-    unexpected: {
-      score: clamp(acoustic.responseSpeed, 40, 88),
-      note: "We could not see how you handled a real follow-up yet.",
-    },
-    tone: {
-      score: 70,
-      note: "Professional tone needs a longer workplace turn to score fairly.",
-    },
+    sufficient: false,
+    grammar: { score: null, examples: ["Not enough speech to score grammar."] },
+    vocabulary: { score: null, examples: ["Not enough speech to score vocabulary."] },
+    clarity: { score: null, note: "Not enough evidence to score clarity." },
+    unexpected: { score: null, note: "Not enough evidence to score unexpected follow-ups." },
+    tone: { score: null, note: "Not enough evidence to score professional tone." },
+    weakness: "You started the situation, but we need a longer turn before we invent a score.",
+    nextFocus: "Retry and speak in full sentences for a few minutes. We only score what we can hear.",
   };
 }
 
 export async function scoreWithModel(chapter, transcript, acoustic) {
-  if (!process.env.OPENAI_API_KEY) {
-    return fallbackLinguistic(acoustic);
-  }
-
-  const spoken = transcript.filter((line) => line.role === "user").map((line) => line.text).join(" ");
-  if (wordCount(spoken) < 12) {
-    return fallbackLinguistic(acoustic);
+  const spoken = transcript
+    .filter((line) => line.role === "user")
+    .map((line) => line.text)
+    .join(" ");
+  if (wordCount(spoken) < MIN_LINGUISTIC_WORDS || !process.env.OPENAI_API_KEY) {
+    return insufficientLinguistic();
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -107,7 +102,7 @@ Return JSON only with this shape:
   "weakness": "one plain sentence, like: you explain well, but you stall when the question is unexpected",
   "nextFocus": "one concrete thing to try on the next retry of the same situation"
 }
-Scores must be explainable. Quote the user's words. Never mention being an AI.`,
+Scores must be explainable and must differ when the evidence differs. Quote the user's words. Never mention being an AI. If a dimension cannot be judged from the transcript, omit its score.`,
         },
         {
           role: "user",
@@ -129,11 +124,12 @@ Scores must be explainable. Quote the user's words. Never mention being an AI.`,
 
   const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
   return {
-    grammar: parsed.grammar ?? fallbackLinguistic(acoustic).grammar,
-    vocabulary: parsed.vocabulary ?? fallbackLinguistic(acoustic).vocabulary,
-    clarity: parsed.clarity ?? fallbackLinguistic(acoustic).clarity,
-    unexpected: parsed.unexpected ?? fallbackLinguistic(acoustic).unexpected,
-    tone: parsed.tone ?? fallbackLinguistic(acoustic).tone,
+    sufficient: true,
+    grammar: parsed.grammar ?? { score: null, examples: [] },
+    vocabulary: parsed.vocabulary ?? { score: null, examples: [] },
+    clarity: parsed.clarity ?? { score: null, note: "Not enough evidence." },
+    unexpected: parsed.unexpected ?? { score: null, note: "Not enough evidence." },
+    tone: parsed.tone ?? { score: null, note: "Not enough evidence." },
     weakness: typeof parsed.weakness === "string" ? parsed.weakness : null,
     nextFocus: typeof parsed.nextFocus === "string" ? parsed.nextFocus : null,
   };
@@ -141,36 +137,38 @@ Scores must be explainable. Quote the user's words. Never mention being an AI.`,
 
 export function buildScorecard(chapter, transcript, timings, model) {
   const acoustic = scoreAcoustic(transcript, timings);
-  const linguistic = model ?? fallbackLinguistic(acoustic);
+  const linguistic = model ?? insufficientLinguistic();
   const metrics = {
     fluency: acoustic.fluency,
     responseSpeed: acoustic.responseSpeed,
-    grammar: Number(linguistic.grammar?.score) || acoustic.fluency,
-    vocabulary: Number(linguistic.vocabulary?.score) || acoustic.fluency,
-    clarity: Number(linguistic.clarity?.score) || acoustic.fluency,
-    tone: Number(linguistic.tone?.score) || 70,
+    grammar: linguistic.sufficient ? numOrNull(linguistic.grammar?.score) : null,
+    vocabulary: linguistic.sufficient ? numOrNull(linguistic.vocabulary?.score) : null,
+    clarity: linguistic.sufficient ? numOrNull(linguistic.clarity?.score) : null,
+    tone: linguistic.sufficient ? numOrNull(linguistic.tone?.score) : null,
   };
-  const overall = clamp(
-    Object.values(metrics).reduce((sum, value) => sum + value, 0) / 6,
-    1,
-    100,
-  );
+  const present = Object.values(metrics).filter((value) => Number.isFinite(value));
+  const overall = present.length ? clamp(present.reduce((sum, value) => sum + value, 0) / present.length, 1, 100) : null;
 
   return {
     overall,
     metrics,
+    evidence: {
+      acoustic: acoustic.fluency != null || acoustic.responseSpeed != null,
+      linguistic: Boolean(linguistic.sufficient),
+      words: acoustic.words,
+    },
     acoustic: {
       speakingSpeed: {
         score: acoustic.fluency,
         wpm: acoustic.wpm,
-        note: acoustic.wpm
+        note: acoustic.fluency != null
           ? `About ${acoustic.wpm} words per minute while you were speaking.`
           : "Not enough timed speech to measure speed.",
       },
       pauses: {
         score: acoustic.responseSpeed,
         avgLatencyMs: acoustic.avgLatencyMs,
-        note: acoustic.avgLatencyMs
+        note: acoustic.responseSpeed != null
           ? `Average ${Math.round(acoustic.avgLatencyMs / 100) / 10}s before you started answering.`
           : "We could not time the gap before your answers.",
       },
@@ -213,25 +211,30 @@ export function summarizeProfile(rows) {
 
   const keys = ["fluency", "responseSpeed", "grammar", "vocabulary", "clarity", "tone"];
   const totals = Object.fromEntries(keys.map((key) => [key, 0]));
-  let counted = 0;
+  const counts = Object.fromEntries(keys.map((key) => [key, 0]));
 
   for (const row of rows) {
     if (!row.scores_json) continue;
     const scores = JSON.parse(row.scores_json);
     if (!scores?.metrics) continue;
-    counted += 1;
     for (const key of keys) {
-      totals[key] += Number(scores.metrics[key]) || 0;
+      const value = Number(scores.metrics[key]);
+      if (!Number.isFinite(value)) continue;
+      totals[key] += value;
+      counts[key] += 1;
     }
   }
+
+  const metrics = Object.fromEntries(
+    keys.map((key) => [key, counts[key] ? Math.round(totals[key] / counts[key]) : null]),
+  );
+  const any = Object.values(metrics).some((value) => value != null);
 
   return {
     sessionCount: rows.length,
     lastOverall: rows[0]?.overall ?? null,
     bestOverall: rows.reduce((best, row) => Math.max(best, row.overall ?? 0), 0) || null,
     latestWeakness: rows[0]?.weakness ?? null,
-    metrics: counted
-      ? Object.fromEntries(keys.map((key) => [key, Math.round(totals[key] / counted)]))
-      : null,
+    metrics: any ? metrics : null,
   };
 }

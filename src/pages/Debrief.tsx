@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MetricBar } from "../components/MetricBar";
+import { ScoreChart } from "../components/ScoreChart";
+import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
 import type { PracticeSession } from "../lib/types";
 
@@ -15,12 +17,14 @@ const METRIC_LABELS = {
 
 export default function Debrief() {
   const { sessionId = "" } = useParams();
+  const { me, refresh } = useAuth();
   const navigate = useNavigate();
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
+    void refresh();
     api
       .session(sessionId)
       .then(({ session: next }) => {
@@ -65,11 +69,12 @@ export default function Debrief() {
   }
 
   const { scores } = session;
+  const trend = me?.progress.find((group) => group.chapterId === session.chapter.id);
 
   return (
     <main className="stage wide">
       <p className="eyebrow">{session.chapter.title}</p>
-      <h1>Score {scores.overall}</h1>
+      <h1>{scores.overall != null ? `Score ${scores.overall}` : "Not enough evidence"}</h1>
       <p className="lede weakness">{scores.weakness}</p>
       <p className="next-focus">Next: {scores.nextFocus}</p>
 
@@ -84,7 +89,15 @@ export default function Debrief() {
             />
           ))}
         </div>
+        {scores.evidence && !scores.evidence.linguistic ? (
+          <p className="empty">
+            Grammar, vocabulary, clarity, and tone stay blank until you speak long enough
+            to quote.
+          </p>
+        ) : null}
       </section>
+
+      {trend ? <ScoreChart group={trend} metricLabel={me?.goal.label || "Unlock metric"} /> : null}
 
       <section className="evidence-grid">
         <article>

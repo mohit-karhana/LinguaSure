@@ -30,7 +30,12 @@ function formatSessionError(sessionError: unknown): string {
   return "The live session hit an error.";
 }
 
-export function useVoiceSession(options: { sessionId: string; instructions: string }) {
+export function useVoiceSession(options: {
+  sessionId: string;
+  instructions: string;
+  maxMs?: number;
+  onTimeUp?: () => void;
+}) {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const generationRef = useRef(0);
@@ -44,6 +49,11 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
   const [muted, setMuted] = useState(false);
   const [messages, setMessages] = useState<TranscriptLine[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState(options.maxMs ?? 8 * 60 * 1000);
+  const onTimeUpRef = useRef(options.onTimeUp);
+  const capTimerRef = useRef<number | null>(null);
+  const capTickRef = useRef<number | null>(null);
+  onTimeUpRef.current = options.onTimeUp;
 
   const snapshot = useCallback(() => {
     if (speakingStartedRef.current) {
@@ -61,6 +71,10 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
 
   const closeHardware = useCallback(() => {
     generationRef.current += 1;
+    if (capTimerRef.current) window.clearTimeout(capTimerRef.current);
+    if (capTickRef.current) window.clearInterval(capTickRef.current);
+    capTimerRef.current = null;
+    capTickRef.current = null;
     try {
       sessionRef.current?.close();
     } catch {
@@ -106,7 +120,8 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
         mediaStream.getTracks().forEach((track) => track.stop());
         return;
       }
-      const { value: apiKey } = await api.token(options.sessionId);
+      const { value: apiKey, remainingMs: serverRemaining } = await api.token(options.sessionId);
+      setRemainingMs(serverRemaining ?? options.maxMs ?? 8 * 60 * 1000);
       if (generation !== generationRef.current) {
         mediaStream.getTracks().forEach((track) => track.stop());
         return;
@@ -186,6 +201,16 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
       sessionRef.current = session;
       setStatus("live");
       setTurn("thinking");
+      const capFrom = Date.now();
+      const budget = serverRemaining ?? options.maxMs ?? 8 * 60 * 1000;
+      capTimerRef.current = window.setTimeout(() => {
+        if (generation !== generationRef.current) return;
+        onTimeUpRef.current?.();
+      }, budget);
+      capTickRef.current = window.setInterval(() => {
+        if (generation !== generationRef.current) return;
+        setRemainingMs(Math.max(0, budget - (Date.now() - capFrom)));
+      }, 250);
     } catch (caught) {
       teardown();
       const message =
@@ -193,7 +218,7 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
       setError(message);
       setStatus("error");
     }
-  }, [options.instructions, options.sessionId, status, teardown]);
+  }, [options.instructions, options.maxMs, options.sessionId, status, teardown]);
 
   const stop = useCallback(() => {
     const result = snapshot();
@@ -217,6 +242,7 @@ export function useVoiceSession(options: { sessionId: string; instructions: stri
     muted,
     messages,
     error,
+    remainingMs,
     start,
     stop,
     toggleMute,

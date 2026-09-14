@@ -6,6 +6,7 @@ export type Chapter = {
   duration: string;
   unlocked?: boolean;
   hidden?: boolean;
+  lane?: "core" | "extra";
   best?: number | null;
 };
 
@@ -39,7 +40,7 @@ export type TranscriptLine = {
 };
 
 export type ScoreNote = {
-  score: number;
+  score: number | null;
   note?: string;
   examples?: string[];
   wpm?: number;
@@ -48,15 +49,22 @@ export type ScoreNote = {
   per100Words?: number;
 };
 
+export type MetricSet = {
+  fluency: number | null;
+  responseSpeed: number | null;
+  grammar: number | null;
+  vocabulary: number | null;
+  clarity: number | null;
+  tone: number | null;
+};
+
 export type Scorecard = {
-  overall: number;
-  metrics: {
-    fluency: number;
-    responseSpeed: number;
-    grammar: number;
-    vocabulary: number;
-    clarity: number;
-    tone: number;
+  overall: number | null;
+  metrics: MetricSet;
+  evidence?: {
+    acoustic: boolean;
+    linguistic: boolean;
+    words: number;
   };
   acoustic: {
     speakingSpeed: ScoreNote;
@@ -82,6 +90,9 @@ export type PracticeSession = {
   status: "live" | "scored" | "abandoned";
   startedAt: string;
   endedAt: string | null;
+  talkStartedAt?: string | null;
+  remainingMs?: number | null;
+  maxMs?: number;
   overall: number | null;
   weakness: string | null;
   nextFocus: string | null;
@@ -91,12 +102,25 @@ export type PracticeSession = {
   instructions?: string;
 };
 
+export type ProgressPoint = {
+  sessionId: string;
+  at: string;
+  overall: number | null;
+  metric: number | null;
+};
+
+export type SituationProgress = {
+  chapterId: string;
+  title: string;
+  points: ProgressPoint[];
+};
+
 export type Profile = {
   sessionCount: number;
   lastOverall: number | null;
   bestOverall: number | null;
   latestWeakness: string | null;
-  metrics: Scorecard["metrics"] | null;
+  metrics: MetricSet | null;
 };
 
 export type MeResponse = {
@@ -105,6 +129,10 @@ export type MeResponse = {
   goal: Goal;
   metricOptions: Record<string, string>;
   chapters: Chapter[];
+  needsAssessment: boolean;
+  hasRetried: boolean;
+  progress: SituationProgress[];
+  assessment: Chapter;
   recent: PracticeSession[];
 };
 

@@ -6,15 +6,20 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { getChapter, publicChapter } from "./chapters.mjs";
+import { ASSESSMENT_ID, getChapter, publicChapter } from "./chapters.mjs";
 import { db, publicUser } from "./db.mjs";
+import { isExpired, rateLimit, remainingMs } from "./limits.mjs";
+import { buildCoachMemory, withMemory } from "./memory.mjs";
 import { hashPassword, normalizeEmail, validateSignup, verifyPassword } from "./password.mjs";
 import {
   decorateChapters,
   ensureTopicOrder,
+  extrasUnlocked,
   isChapterUnlocked,
   METRIC_LABELS,
+  needsAssessment,
   normalizeGoal,
+  situationProgress,
   userGoal,
 } from "./progress.mjs";
 import { buildScorecard, scoreAcoustic, scoreWithModel, summarizeProfile } from "./score.mjs";
@@ -82,9 +87,18 @@ const listScoredSessions = db.prepare(`
   SELECT * FROM practice_sessions
   WHERE user_id = ? AND status = 'scored'
   ORDER BY started_at DESC
-  LIMIT 12
+  LIMIT 80
+`);
+const listLiveSessions = db.prepare(`
+  SELECT * FROM practice_sessions
+  WHERE user_id = ? AND status = 'live'
+`);
+const markTalkStarted = db.prepare(`
+  UPDATE practice_sessions SET talk_started_at = @talk_started_at
+  WHERE id = @id AND talk_started_at IS NULL
 `);
 
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 app.use(
   cookieSession({
@@ -123,21 +137,49 @@ function requireUser(req, res, next) {
   next();
 }
 
-function publicSession(row, { instructions = false } = {}) {
+function sessionInstructions(row, scored) {
+  const chapter = getChapter(row.chapter_id);
+  if (!chapter) return undefined;
+  return withMemory(chapter.instructions, buildCoachMemory(scored));
+}
+
+function publicSession(row, { instructions = false, scored = [] } = {}) {
   const chapter = getChapter(row.chapter_id);
   return {
     id: row.id,
     status: row.status,
     startedAt: row.started_at,
     endedAt: row.ended_at,
+    talkStartedAt: row.talk_started_at,
+    remainingMs: row.status === "live" ? remainingMs(row) : null,
+    maxMs: 8 * 60 * 1000,
     overall: row.overall,
     weakness: row.weakness,
     nextFocus: row.next_focus,
     chapter: chapter ? publicChapter(chapter) : { id: row.chapter_id, title: row.chapter_id },
     transcript: row.transcript_json ? JSON.parse(row.transcript_json) : [],
     scores: row.scores_json ? JSON.parse(row.scores_json) : null,
-    instructions: instructions && chapter ? chapter.instructions : undefined,
+    instructions: instructions ? sessionInstructions(row, scored) : undefined,
   };
+}
+
+function sweepLiveSessions(userId) {
+  for (const row of listLiveSessions.all(userId)) {
+    if (isExpired(row)) {
+      abandonSession.run({
+        id: row.id,
+        user_id: userId,
+        ended_at: new Date().toISOString(),
+      });
+    }
+  }
+}
+
+function activeTalkSessions(userId, exceptId) {
+  sweepLiveSessions(userId);
+  return listLiveSessions
+    .all(userId)
+    .filter((row) => row.talk_started_at && row.id !== exceptId);
 }
 
 app.get("/api/health", (_req, res) => {
@@ -150,7 +192,14 @@ app.get("/api/config", (_req, res) => {
   });
 });
 
-app.post("/api/auth/google", async (req, res) => {
+app.post(
+  "/api/auth/google",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: "Too many sign-in attempts. Wait a few minutes.",
+  }),
+  async (req, res) => {
   if (!googleClient || !process.env.GOOGLE_CLIENT_ID) {
     res.status(503).json({
       error: "Set GOOGLE_CLIENT_ID on the server to enable Google sign-in.",
@@ -201,7 +250,14 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
-app.post("/api/auth/signup", async (req, res) => {
+app.post(
+  "/api/auth/signup",
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    message: "Too many accounts from this network. Try again later.",
+  }),
+  async (req, res) => {
   const parsed = validateSignup(req.body || {});
   if (parsed.error) {
     res.status(400).json({ error: parsed.error });
@@ -230,7 +286,14 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post(
+  "/api/auth/login",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: "Too many sign-in attempts. Wait a few minutes.",
+  }),
+  async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "");
   const user = email ? selectUserByEmail.get(email) : null;
@@ -293,10 +356,14 @@ function userProgress(user, scored) {
   return {
     goal: publicGoal(goal),
     chapters: decorateChapters(order, scored, goal),
+    needsAssessment: needsAssessment(scored),
+    hasRetried: extrasUnlocked(scored),
+    progress: situationProgress(scored, goal),
   };
 }
 
 app.get("/api/me", requireUser, (req, res) => {
+  sweepLiveSessions(req.user.id);
   const history = listSessions.all(req.user.id);
   const scored = listScoredSessions.all(req.user.id);
   const progress = userProgress(req.user, scored);
@@ -306,7 +373,11 @@ app.get("/api/me", requireUser, (req, res) => {
     goal: progress.goal,
     metricOptions: METRIC_LABELS,
     chapters: progress.chapters,
-    recent: history.slice(0, 6).map(publicSession),
+    needsAssessment: progress.needsAssessment,
+    hasRetried: progress.hasRetried,
+    progress: progress.progress,
+    assessment: publicChapter(getChapter(ASSESSMENT_ID)),
+    recent: history.slice(0, 6).map((row) => publicSession(row, { scored })),
   });
 });
 
@@ -346,10 +417,23 @@ app.post("/api/history/reset", requireUser, (req, res) => {
 });
 
 app.get("/api/sessions", requireUser, (req, res) => {
-  res.json({ sessions: listSessions.all(req.user.id).map(publicSession) });
+  const scored = listScoredSessions.all(req.user.id);
+  res.json({
+    sessions: listSessions.all(req.user.id).map((row) => publicSession(row, { scored })),
+    progress: situationProgress(scored, userGoal(req.user)),
+  });
 });
 
-app.post("/api/sessions", requireUser, (req, res) => {
+app.post(
+  "/api/sessions",
+  requireUser,
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 20,
+    keyFn: (req) => req.user?.id || req.ip,
+    message: "Too many new sessions this hour.",
+  }),
+  (req, res) => {
   const chapter = getChapter(req.body?.chapterId);
   if (!chapter) {
     res.status(400).json({ error: "Choose a valid situation." });
@@ -359,7 +443,16 @@ app.post("/api/sessions", requireUser, (req, res) => {
   const order = ensureTopicOrder(db, req.user);
   if (!isChapterUnlocked(order, scored, userGoal(req.user), chapter.id)) {
     res.status(403).json({
-      error: "That situation is still locked. Hit your bar on the previous one first.",
+      error: needsAssessment(scored)
+        ? "Complete the opening assessment first."
+        : "That situation is still locked. Hit your bar on the previous one first.",
+    });
+    return;
+  }
+
+  if (activeTalkSessions(req.user.id).length) {
+    res.status(409).json({
+      error: "A live call is already running. End that one before starting another.",
     });
     return;
   }
@@ -376,7 +469,9 @@ app.post("/api/sessions", requireUser, (req, res) => {
     chapter_id: chapter.id,
     started_at: new Date().toISOString(),
   });
-  res.status(201).json({ session: publicSession(selectSession.get(id), { instructions: true }) });
+  res.status(201).json({
+    session: publicSession(selectSession.get(id), { instructions: true, scored }),
+  });
 });
 
 app.get("/api/sessions/:id", requireUser, (req, res) => {
@@ -385,10 +480,20 @@ app.get("/api/sessions/:id", requireUser, (req, res) => {
     res.status(404).json({ error: "Session not found." });
     return;
   }
-  res.json({ session: publicSession(row, { instructions: true }) });
+  const scored = listScoredSessions.all(req.user.id);
+  res.json({ session: publicSession(row, { instructions: true, scored }) });
 });
 
-app.post("/api/token", requireUser, async (req, res) => {
+app.post(
+  "/api/token",
+  requireUser,
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 8,
+    keyFn: (req) => req.user?.id || req.ip,
+    message: "Talk limit reached for this hour. Come back later.",
+  }),
+  async (req, res) => {
   if (!process.env.OPENAI_API_KEY) {
     res.status(503).json({ error: "OPENAI_API_KEY is not configured on the server." });
     return;
@@ -399,11 +504,29 @@ app.post("/api/token", requireUser, async (req, res) => {
     res.status(400).json({ error: "Start a situation before talking." });
     return;
   }
+  if (isExpired(row)) {
+    abandonSession.run({
+      id: row.id,
+      user_id: req.user.id,
+      ended_at: new Date().toISOString(),
+    });
+    res.status(400).json({ error: "That call hit the 8-minute cap. Start the situation again." });
+    return;
+  }
+  if (activeTalkSessions(req.user.id, row.id).length) {
+    res.status(409).json({
+      error: "A live call is already running. End that one before starting another.",
+    });
+    return;
+  }
   const chapter = getChapter(row.chapter_id);
   if (!chapter) {
     res.status(400).json({ error: "This situation is no longer available." });
     return;
   }
+
+  const scored = listScoredSessions.all(req.user.id);
+  const instructions = withMemory(chapter.instructions, buildCoachMemory(scored));
 
   try {
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -416,7 +539,7 @@ app.post("/api/token", requireUser, async (req, res) => {
         session: {
           type: "realtime",
           model: "gpt-realtime-2.1",
-          instructions: chapter.instructions,
+          instructions,
           audio: { output: { voice: "marin" } },
         },
       }),
@@ -430,7 +553,16 @@ app.post("/api/token", requireUser, async (req, res) => {
       res.status(response.status || 502).json({ error: message });
       return;
     }
-    res.json({ value: data.value, chapter: publicChapter(chapter) });
+    markTalkStarted.run({
+      id: row.id,
+      talk_started_at: row.talk_started_at || new Date().toISOString(),
+    });
+    const live = selectSession.get(row.id);
+    res.json({
+      value: data.value,
+      chapter: publicChapter(chapter),
+      remainingMs: remainingMs(live),
+    });
   } catch (error) {
     console.error("Token generation failed", error);
     res.status(500).json({ error: "Failed to create a realtime session token." });

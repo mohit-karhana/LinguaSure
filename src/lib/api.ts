@@ -50,7 +50,10 @@ export const api = {
   resetHistory: () =>
     request<{ ok: boolean }>("/api/history/reset", { method: "POST" }),
   sessions: () =>
-    request<{ sessions: import("./types").PracticeSession[] }>("/api/sessions"),
+    request<{
+      sessions: import("./types").PracticeSession[];
+      progress: import("./types").SituationProgress[];
+    }>("/api/sessions"),
   createSession: (chapterId: string) =>
     request<{ session: import("./types").PracticeSession }>("/api/sessions", {
       method: "POST",
@@ -59,7 +62,7 @@ export const api = {
   session: (id: string) =>
     request<{ session: import("./types").PracticeSession }>(`/api/sessions/${id}`),
   token: (sessionId: string) =>
-    request<{ value: string }>("/api/token", {
+    request<{ value: string; remainingMs: number }>("/api/token", {
       method: "POST",
       body: JSON.stringify({ sessionId }),
     }),

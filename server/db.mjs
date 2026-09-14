@@ -100,6 +100,18 @@ function migrateProgress() {
   }
 }
 
+migrateSessions();
+
+function migrateSessions() {
+  const columns = new Set(
+    db.prepare("PRAGMA table_info(practice_sessions)").all().map((column) => column.name),
+  );
+  if (!columns.size) return;
+  if (!columns.has("talk_started_at")) {
+    db.exec("ALTER TABLE practice_sessions ADD COLUMN talk_started_at TEXT");
+  }
+}
+
 export function publicUser(row) {
   return {
     id: row.id,

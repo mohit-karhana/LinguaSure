@@ -439,6 +439,54 @@ button:disabled {
   background: var(--accent);
 }
 
+.metric.is-empty .metric-fill {
+  background: var(--line);
+}
+
+.metric-empty {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.chart-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.score-chart {
+  padding: 16px 0 0;
+  color: var(--accent);
+}
+
+.score-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+}
+
+.score-chart-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.score-chart-head p,
+.score-chart-head strong {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.score-chart svg {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+  margin-top: 10px;
+}
+
 .chapter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -12,6 +12,13 @@ const TURN_LABEL = {
   speaking: "Speaking",
 } as const;
 
+function formatRemaining(ms: number) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 export default function Practice() {
   const { sessionId = "" } = useParams();
   const navigate = useNavigate();
@@ -88,10 +95,14 @@ function LivePractice({
   const listRef = useRef<HTMLOListElement>(null);
   const scoredRef = useRef(false);
   const abandonGen = useRef(0);
-  const { status, turn, muted, messages, error, start, stop, toggleMute } = useVoiceSession({
-    sessionId: session.id,
-    instructions: session.instructions || "",
-  });
+  const finishRef = useRef<() => void>(() => {});
+  const { status, turn, muted, messages, error, remainingMs, start, stop, toggleMute } =
+    useVoiceSession({
+      sessionId: session.id,
+      instructions: session.instructions || "",
+      maxMs: session.maxMs ?? 8 * 60 * 1000,
+      onTimeUp: () => finishRef.current(),
+    });
   const live = status === "live";
 
   useEffect(() => {
@@ -112,7 +123,7 @@ function LivePractice({
   }, [session.id]);
 
   async function finish() {
-    if (finishing) return;
+    if (finishing || scoredRef.current) return;
     setFinishing(true);
     const payload = stop();
     try {
@@ -125,6 +136,10 @@ function LivePractice({
       window.alert(caught instanceof Error ? caught.message : "Could not save the score.");
     }
   }
+
+  finishRef.current = () => {
+    void finish();
+  };
 
   function leave() {
     if (live && !window.confirm("Leave without scoring? The call will end.")) return;
@@ -150,8 +165,8 @@ function LivePractice({
             : status === "connecting"
               ? "Connecting…"
               : live
-                ? TURN_LABEL[turn]
-                : "Not connected"}
+                ? `${TURN_LABEL[turn]} · ${formatRemaining(remainingMs)} left`
+                : "Not connected · 8 minute cap"}
         </p>
       </section>
 

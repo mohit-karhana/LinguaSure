@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ScoreChart } from "../components/ScoreChart";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
-import type { PracticeSession } from "../lib/types";
+import type { PracticeSession, SituationProgress } from "../lib/types";
 
 function sessionHref(session: PracticeSession) {
   if (session.status === "scored") return `/debrief/${session.id}`;
@@ -17,15 +18,19 @@ function sessionLabel(session: PracticeSession) {
 }
 
 export default function History() {
-  const { refresh } = useAuth();
+  const { me, refresh } = useAuth();
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
+  const [progress, setProgress] = useState<SituationProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     api
       .sessions()
-      .then((data) => setSessions(data.sessions))
+      .then((data) => {
+        setSessions(data.sessions);
+        setProgress(data.progress || []);
+      })
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : "Could not load history.");
       });
@@ -45,6 +50,7 @@ export default function History() {
       await api.resetHistory();
       await refresh();
       setSessions([]);
+      setProgress([]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not reset history.");
     } finally {
@@ -59,6 +65,17 @@ export default function History() {
       <p className="lede">
         Retry the same situation. The point is the delta, not a new chat.
       </p>
+      {progress.some((group) => group.points.filter((point) => point.overall != null).length >= 2) ? (
+        <section className="chart-grid">
+          {progress.map((group) => (
+            <ScoreChart
+              key={group.chapterId}
+              group={group}
+              metricLabel={me?.goal.label || "Unlock metric"}
+            />
+          ))}
+        </section>
+      ) : null}
       <div className="section-head">
         <h2>Sessions</h2>
         <button
