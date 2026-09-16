@@ -1,10 +1,9 @@
-import { GoogleLogin } from "@react-oauth/google";
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
-export default function Login({ googleClientId }: { googleClientId: string }) {
-  const { user, login, loginWithPassword, signup } = useAuth();
+export default function Login({ googleClientId: _googleClientId }: { googleClientId: string }) {
+  const { user, loginWithPassword, signup } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,14 +44,20 @@ export default function Login({ googleClientId }: { googleClientId: string }) {
           <button
             type="button"
             className={mode === "signin" ? "active" : ""}
-            onClick={() => setMode("signin")}
+            onClick={() => {
+              setMode("signin");
+              setError(null);
+            }}
           >
             Sign in
           </button>
           <button
             type="button"
             className={mode === "signup" ? "active" : ""}
-            onClick={() => setMode("signup")}
+            onClick={() => {
+              setMode("signup");
+              setError(null);
+            }}
           >
             Create account
           </button>
@@ -102,36 +107,6 @@ export default function Login({ googleClientId }: { googleClientId: string }) {
                 : "Sign in"}
           </button>
         </form>
-
-        <div className="auth-split">or</div>
-
-        <h2>Continue with Google</h2>
-        {googleClientId ? (
-          <div className="google-btn">
-            <GoogleLogin
-              onSuccess={async (response) => {
-                if (!response.credential) {
-                  setError("Google did not return a sign-in credential.");
-                  return;
-                }
-                try {
-                  await login(response.credential);
-                } catch (caught) {
-                  setError(caught instanceof Error ? caught.message : "Sign-in failed.");
-                }
-              }}
-              onError={() => setError("Google sign-in was cancelled.")}
-              theme="filled_black"
-              shape="pill"
-              size="large"
-              text="continue_with"
-              width={320}
-              use_fedcm_for_prompt
-            />
-          </div>
-        ) : (
-          <p className="empty">Google sign-in is optional. Use email and password above.</p>
-        )}
         {error ? <p className="error">{error}</p> : null}
       </section>
     </main>

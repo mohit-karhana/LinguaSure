@@ -1,10 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { MetricBar } from "../components/MetricBar";
-import { ScoreChart } from "../components/ScoreChart";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
-import type { Goal, UnlockMetric } from "../lib/types";
+import type { WeeklyReport } from "../lib/types";
 
 const METRIC_LABELS = {
   fluency: "Fluency",
@@ -15,21 +14,44 @@ const METRIC_LABELS = {
   tone: "Professional tone",
 } as const;
 
-const UNLOCK_METRICS: UnlockMetric[] = [
-  "fluency",
-  "responseSpeed",
-  "grammar",
-  "vocabulary",
-  "clarity",
-  "tone",
-  "overall",
+const FOCUS_OPTIONS = [
+  {
+    id: "interview" as const,
+    title: "Interview prep",
+    detail: "Interviews, your story, salary talks.",
+  },
+  {
+    id: "workplace" as const,
+    title: "Meetings & workplace",
+    detail: "Standups, managers, speaking up in the room.",
+  },
+  {
+    id: "client" as const,
+    title: "Client calls",
+    detail: "Explaining, recovering trust, negotiating.",
+  },
 ];
 
-function emptyThresholds(fallback = 70): Record<UnlockMetric, number> {
-  return Object.fromEntries(UNLOCK_METRICS.map((metric) => [metric, fallback])) as Record<
-    UnlockMetric,
-    number
-  >;
+function dayKey(dateIso: string) {
+  const date = new Date(dateIso);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function streakFromRecent(recent: Array<{ startedAt: string; status: string }>) {
+  const scoredDays = [
+    ...new Set(recent.filter((row) => row.status === "scored").map((row) => dayKey(row.startedAt))),
+  ];
+  if (!scoredDays.length) return 0;
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  while (true) {
+    const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
+    if (!scoredDays.includes(key)) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 export default function Home() {
@@ -37,13 +59,11 @@ export default function Home() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
-  const [savingGoal, setSavingGoal] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
-  const [metric, setMetric] = useState<Goal["metric"]>(me?.goal.metric ?? "fluency");
-  const [thresholds, setThresholds] = useState<Record<UnlockMetric, number>>(
-    me?.goal.thresholds ?? emptyThresholds(me?.goal.threshold ?? 70),
-  );
+  const [choosing, setChoosing] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [report, setReport] = useState<WeeklyReport | null>(null);
+  const [reportLoaded, setReportLoaded] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -51,25 +71,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!me) return;
-    setMetric(me.goal.metric);
-    setThresholds({
-      ...emptyThresholds(me.goal.threshold),
-      ...me.goal.thresholds,
-    });
-    setAdvanced(me.goal.metric !== "fluency");
-  }, [me]);
+    if (!me || me.needsAssessment || reportLoaded) return;
+    setReportLoaded(true);
+    api
+      .report()
+      .then(({ report: next }) => setReport(next))
+      .catch(() => {});
+  }, [me, reportLoaded]);
 
   if (!me) return null;
 
-  const opened = me.chapters.filter((chapter) => chapter.unlocked).length;
-  const moving = me.progress.filter((group) => group.points.filter((point) => point.overall != null).length >= 2);
+  const liveSession = me.recent.find((session) => session.status === "live");
+  const streak = streakFromRecent(me.recent);
 
-  async function startChapter(chapterId: string) {
-    setStarting(chapterId);
+  async function startChapter(
+    chapterId: string,
+    options: { kind?: "drill"; focus?: string | null } = {},
+  ) {
+    setStarting(options.kind === "drill" ? `drill-${chapterId}` : chapterId);
     setError(null);
     try {
-      const { session } = await api.createSession(chapterId);
+      const { session } = await api.createSession(chapterId, options);
       await refresh();
       navigate(`/practice/${session.id}`);
     } catch (caught) {
@@ -78,49 +100,71 @@ export default function Home() {
     }
   }
 
-  async function resetHistory() {
-    if (
-      !window.confirm(
-        "Delete every session and lock situations again? Your unlock bar settings stay.",
-      )
-    ) {
-      return;
-    }
-    setResetting(true);
+  async function chooseFocus(focusArea: "interview" | "workplace" | "client") {
+    setChoosing(true);
     setError(null);
     try {
-      await api.resetHistory();
+      await api.onboarding(focusArea);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not reset history.");
+      setError(caught instanceof Error ? caught.message : "Could not save that.");
     } finally {
-      setResetting(false);
+      setChoosing(false);
     }
   }
 
-  async function saveGoal(event: FormEvent) {
-    event.preventDefault();
-    setSavingGoal(true);
+  async function switchProgram(programId: string) {
+    setSwitching(true);
     setError(null);
     try {
-      const nextMetric = advanced ? metric : "fluency";
-      await api.updateGoal({ metric: nextMetric, thresholds });
+      await api.setProgram(programId);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save your bar.");
+      setError(caught instanceof Error ? caught.message : "Could not switch programs.");
     } finally {
-      setSavingGoal(false);
+      setSwitching(false);
     }
   }
 
+  // Onboarding: one question, then the assessment.
   if (me.needsAssessment) {
+    if (!me.user.focusArea) {
+      return (
+        <main className="stage">
+          <p className="eyebrow">Welcome</p>
+          <h1>What do you need English for?</h1>
+          <p className="lede">
+            One choice. It shapes your assessment, your program, and every
+            recommendation after it.
+          </p>
+          <div className="focus-options">
+            {FOCUS_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="focus-option"
+                onClick={() => void chooseFocus(option.id)}
+                disabled={choosing}
+              >
+                <strong>{option.title}</strong>
+                <p>{option.detail}</p>
+              </button>
+            ))}
+          </div>
+          {error ? <p className="error">{error}</p> : null}
+        </main>
+      );
+    }
+
     return (
       <main className="stage">
         <p className="eyebrow">First session</p>
         <h1>Know where you stand.</h1>
         <p className="lede">
-          One mixed 8-minute conversation. Then a profile. Then the gym. We only
-          score what we can hear.
+          One gentle 8-minute conversation. Then your Communication Score, one
+          named weakness, and day 1 of{" "}
+          {me.program ? `“${me.program.title}”` : "your program"}. We only score
+          what we can hear.
         </p>
         <div className="controls" style={{ justifyContent: "flex-start", marginTop: 28 }}>
           <button
@@ -137,37 +181,72 @@ export default function Home() {
     );
   }
 
+  const today = me.today;
+  const todayBusy = starting === today.chapterId;
+
   return (
     <main className="stage wide">
-      <p className="eyebrow">Your loop</p>
-      <h1>Situation. Speak. Score. Unlock.</h1>
-      <p className="lede">
-        Five core situations first. Everything else is under More situations after you finish the assessment.
-      </p>
+      {/* Block 1: Today's session */}
+      <section className="today-hero">
+        <p className="eyebrow">{today.reason}</p>
+        <h1>{today.title}</h1>
+        <div className="controls" style={{ justifyContent: "flex-start" }}>
+          {liveSession ? (
+            <Link className="button-link primary-link" to={`/practice/${liveSession.id}`}>
+              Resume live session
+            </Link>
+          ) : (
+            <button
+              type="button"
+              className="primary"
+              onClick={() =>
+                void startChapter(today.chapterId, {
+                  kind: today.kind === "drill" ? "drill" : undefined,
+                  focus: today.focus,
+                })
+              }
+              disabled={Boolean(starting)}
+            >
+              {todayBusy ? "Opening…" : today.kind === "drill" ? "Start the drill" : "Start today's session"}
+            </button>
+          )}
+          {me.drill && !liveSession && today.kind !== "drill" ? (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() =>
+                void startChapter(me.drill!.chapterId, { kind: "drill", focus: me.drill!.focus })
+              }
+              disabled={Boolean(starting)}
+            >
+              {starting === `drill-${me.drill.chapterId}` ? "Opening…" : me.drill.label}
+            </button>
+          ) : null}
+        </div>
+        <p className="micro-note">
+          {streak > 0
+            ? `${streak}-day streak · one scored session keeps it alive.`
+            : "One scored session today starts your streak."}
+          {" · "}Level {me.level.label}
+          {me.level.next ? ` · ${me.level.next.progress}% to ${me.level.next.label}` : ""}
+        </p>
+      </section>
 
+      {/* Block 2: Your score */}
       <section className="profile-card">
         <div className="profile-head">
           <div>
-            <h2>Communication profile</h2>
+            <h2>Your score</h2>
             <p>
               {me.profile.sessionCount
                 ? `${me.profile.sessionCount} scored session${me.profile.sessionCount === 1 ? "" : "s"}`
                 : "No scored sessions yet"}
               {me.profile.lastOverall != null ? ` · last ${me.profile.lastOverall}` : ""}
               {me.profile.bestOverall != null ? ` · best ${me.profile.bestOverall}` : ""}
-              {` · ${opened} open`}
             </p>
           </div>
           <div className="profile-actions">
-            <Link to="/history">History</Link>
-            <button
-              type="button"
-              className="ghost compact"
-              onClick={() => void resetHistory()}
-              disabled={resetting || (me.profile.sessionCount === 0 && me.recent.length === 0)}
-            >
-              {resetting ? "Resetting…" : "Reset history"}
-            </button>
+            <Link to="/history">Trends & history</Link>
           </div>
         </div>
         {me.profile.latestWeakness ? (
@@ -186,191 +265,154 @@ export default function Home() {
             ))}
           </div>
         ) : null}
-      </section>
-
-      {moving.length > 0 ? (
-        <section className="profile-card">
-          <h2>Did the score move?</h2>
-          <div className="chart-grid">
-            {moving.map((group) => (
-              <ScoreChart key={group.chapterId} group={group} metricLabel={me.goal.label} />
+        {report ? (
+          <div className="report-card">
+            <h3>This week&apos;s coach report</h3>
+            <p className="weakness">{report.headline}</p>
+            {report.wins.map((win) => (
+              <p key={win} className="micro-note">
+                {win}
+              </p>
             ))}
+            <p>Next week: {report.focus}</p>
+            <ol className="action-list">
+              {report.plan.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
           </div>
-        </section>
-      ) : null}
-
-      <section className="profile-card">
-        <div className="profile-head">
-          <div>
-            <h2>Your unlock bar</h2>
-            <p>
-              Next situation opens when you hit {me.goal.threshold}{" "}
-              {me.goal.label.toLowerCase()} on the current one.
-            </p>
-          </div>
-        </div>
-        <form className="goal-form stacked" onSubmit={(event) => void saveGoal(event)}>
-          <label>
-            Minimum {advanced ? me.metricOptions[metric].toLowerCase() : "fluency"}
-            <input
-              type="number"
-              min={50}
-              max={95}
-              value={thresholds[advanced ? metric : "fluency"] ?? 70}
-              onChange={(event) =>
-                setThresholds((current) => ({
-                  ...current,
-                  [advanced ? metric : "fluency"]: Number(event.target.value),
-                }))
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="text-link"
-            onClick={() => setAdvanced((value) => !value)}
-          >
-            {advanced ? "Use the simple fluency bar" : "Advanced: pick another metric"}
-          </button>
-          {advanced ? (
-            <ul className="goal-metrics">
-              {Object.entries(me.metricOptions).map(([value, label]) => {
-                const key = value as UnlockMetric;
-                return (
-                  <li key={key}>
-                    <label className="goal-metric">
-                      <input
-                        type="radio"
-                        name="unlock-metric"
-                        checked={metric === key}
-                        onChange={() => setMetric(key)}
-                      />
-                      <span>{label}</span>
-                      <input
-                        type="number"
-                        min={50}
-                        max={95}
-                        value={thresholds[key] ?? 70}
-                        onChange={(event) =>
-                          setThresholds((current) => ({
-                            ...current,
-                            [key]: Number(event.target.value),
-                          }))
-                        }
-                      />
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-          <button type="submit" className="primary compact" disabled={savingGoal}>
-            {savingGoal ? "Saving…" : "Save bar"}
-          </button>
-        </form>
+        ) : (
+          <p className="micro-note">
+            Your weekly coach report appears here after your first scored session
+            of the week.
+          </p>
+        )}
       </section>
 
-      <section>
-        <div className="section-head">
-          <h2>Core situations</h2>
-        </div>
-        <div className="chapter-grid">
-          {me.chapters
-            .filter((chapter) => chapter.lane !== "extra")
-            .map((chapter) =>
-            chapter.unlocked ? (
+      {/* Block 3: Your program */}
+      <section className="profile-card">
+        {me.program ? (
+          <>
+            <div className="profile-head">
+              <div>
+                <h2>{me.program.title}</h2>
+                <p>
+                  {me.program.done
+                    ? `Finished — all ${me.program.totalDays} days done.`
+                    : `Day ${me.program.day} of ${me.program.totalDays} · ${me.program.tagline}`}
+                </p>
+              </div>
+            </div>
+            <div className="level-track" role="img" aria-label="Program progress">
+              <div
+                className="level-fill"
+                style={{ width: `${Math.round((me.program.completed / me.program.totalDays) * 100)}%` }}
+              />
+            </div>
+            <ul className="program-steps">
+              {me.program.steps
+                .slice(Math.max(0, me.program.completed - 1), me.program.completed + 3)
+                .map((step, index, visible) => (
+                  <li key={`${step.chapterId}-${index}`} className={step.done ? "done" : ""}>
+                    <span className="step-mark">{step.done ? "✓" : "·"}</span>
+                    <span>
+                      {step.title}
+                      {step.kind === "drill" ? " (2 min)" : ""}
+                      {!step.done && visible.findIndex((item) => !item.done) === index
+                        ? " — up next"
+                        : ""}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            {me.program.done ? (
+              <div className="controls" style={{ justifyContent: "flex-start" }}>
+                {me.programs
+                  .filter((program) => program.id !== me.program?.id)
+                  .map((program) => (
+                    <button
+                      key={program.id}
+                      type="button"
+                      className="ghost compact"
+                      onClick={() => void switchProgram(program.id)}
+                      disabled={switching}
+                    >
+                      Start {program.title}
+                    </button>
+                  ))}
+              </div>
+            ) : (
+              <details className="program-switch">
+                <summary>Switch program</summary>
+                <div className="controls" style={{ justifyContent: "flex-start" }}>
+                  {me.programs
+                    .filter((program) => program.id !== me.program?.id)
+                    .map((program) => (
+                      <button
+                        key={program.id}
+                        type="button"
+                        className="ghost compact"
+                        onClick={() => void switchProgram(program.id)}
+                        disabled={switching}
+                      >
+                        {program.title} ({program.totalDays} days)
+                      </button>
+                    ))}
+                </div>
+                <p className="micro-note">Switching restarts progress at day 1.</p>
+              </details>
+            )}
+          </>
+        ) : (
+          <>
+            <h2>Pick a program</h2>
+            <p className="micro-note">
+              A fixed sequence of real situations with an end state. The coach
+              picks your session each day.
+            </p>
+            <div className="chapter-grid">
+              {me.programs.map((program) => (
+                <button
+                  key={program.id}
+                  type="button"
+                  className="chapter-card"
+                  onClick={() => void switchProgram(program.id)}
+                  disabled={switching}
+                >
+                  <strong>{program.title}</strong>
+                  <p>{program.tagline}</p>
+                  <span>{program.totalDays} days</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <button type="button" className="text-link" onClick={() => setBrowsing((value) => !value)}>
+          {browsing ? "Hide the full library" : `Browse all ${me.chapters.length} situations`}
+        </button>
+        {browsing ? (
+          <div className="chapter-grid">
+            {me.chapters.map((chapter) => (
               <button
                 key={chapter.id}
                 type="button"
                 className="chapter-card"
-                onClick={() => startChapter(chapter.id)}
+                onClick={() => void startChapter(chapter.id)}
                 disabled={Boolean(starting)}
               >
                 <strong>{chapter.title}</strong>
                 <p>{chapter.situation}</p>
                 <span>
                   {chapter.duration}
-                  {chapter.best != null
-                    ? ` · best ${chapter.best} ${me.goal.label.toLowerCase()}`
-                    : " · not scored yet"}
+                  {chapter.best != null ? ` · best ${chapter.best}` : " · not scored yet"}
                   {starting === chapter.id ? " · Starting…" : ""}
                 </span>
               </button>
-            ) : (
-              <article key={chapter.id} className="chapter-card locked">
-                <strong>{chapter.title}</strong>
-                <p>{chapter.situation}</p>
-                <span>Locked</span>
-              </article>
-            ),
-          )}
-        </div>
-      </section>
-
-      {me.chapters.some((chapter) => chapter.lane === "extra") ? (
-        <section>
-          <div className="section-head">
-            <h2>More situations</h2>
-          </div>
-          <p className="lede">Open any of these after the assessment. Retry the same one to see if the score moved.</p>
-          <div className="chapter-grid">
-            {me.chapters
-              .filter((chapter) => chapter.lane === "extra")
-              .map((chapter) => (
-                <button
-                  key={chapter.id}
-                  type="button"
-                  className="chapter-card"
-                  onClick={() => startChapter(chapter.id)}
-                  disabled={Boolean(starting)}
-                >
-                  <strong>{chapter.title}</strong>
-                  <p>{chapter.situation}</p>
-                  <span>
-                    {chapter.duration}
-                    {chapter.best != null
-                      ? ` · best ${chapter.best} ${me.goal.label.toLowerCase()}`
-                      : " · not scored yet"}
-                    {starting === chapter.id ? " · Starting…" : ""}
-                  </span>
-                </button>
-              ))}
-          </div>
-        </section>
-      ) : null}
-
-      {me.recent.length > 0 ? (
-        <section>
-          <div className="section-head">
-            <h2>Recent</h2>
-          </div>
-          <ul className="session-list">
-            {me.recent.map((session) => (
-              <li key={session.id}>
-                {session.status === "abandoned" ? (
-                  <div className="session-static">
-                    <strong>{session.chapter.title}</strong>
-                    <span>
-                      Left without scoring
-                      {" · "}
-                      {new Date(session.startedAt).toLocaleString()}
-                    </span>
-                  </div>
-                ) : (
-                  <Link to={session.status === "scored" ? `/debrief/${session.id}` : `/practice/${session.id}`}>
-                    <strong>{session.chapter.title}</strong>
-                    <span>
-                      {session.overall != null ? `Score ${session.overall}` : "In progress"}
-                      {" · "}
-                      {new Date(session.startedAt).toLocaleString()}
-                    </span>
-                  </Link>
-                )}
-              </li>
             ))}
-          </ul>
-        </section>
-      ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {error ? <p className="error">{error}</p> : null}
     </main>

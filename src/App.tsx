@@ -29,7 +29,7 @@ function Shell() {
           LinguaSure
         </Link>
         <nav>
-          <Link to="/">Situations</Link>
+          <Link to="/">Today</Link>
           <Link to="/history">History</Link>
           {user?.picture ? <img src={user.picture} alt="" className="avatar" referrerPolicy="no-referrer" /> : null}
           <span>{user?.name}</span>

@@ -1,12 +1,6 @@
 import type { SituationProgress } from "../lib/types";
 
-export function ScoreChart({
-  group,
-  metricLabel,
-}: {
-  group: SituationProgress;
-  metricLabel: string;
-}) {
+export function ScoreChart({ group }: { group: SituationProgress }) {
   const points = group.points.filter((point) => point.overall != null);
   if (points.length < 2) return null;
 
@@ -35,8 +29,6 @@ export function ScoreChart({
           <p>
             Last {points.length} overall scores
             {delta === 0 ? " · unchanged" : delta > 0 ? ` · up ${delta}` : ` · down ${Math.abs(delta)}`}
-            {" · "}
-            {metricLabel.toLowerCase()} last {points[points.length - 1].metric ?? "—"}
           </p>
         </div>
         <strong>{last}</strong>

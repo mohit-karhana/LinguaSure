@@ -5,23 +5,30 @@ import { OAuth2Client } from "google-auth-library";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { ASSESSMENT_ID, getChapter, publicChapter } from "./chapters.mjs";
 import { db, publicUser } from "./db.mjs";
-import { isExpired, rateLimit, remainingMs } from "./limits.mjs";
-import { buildCoachMemory, withMemory } from "./memory.mjs";
+import { capMs, isExpired, rateLimit, remainingMs } from "./limits.mjs";
+import { sendVerificationEmail } from "./mail.mjs";
+import { buildCoachMemory, inferLevel, withMemory } from "./memory.mjs";
 import { hashPassword, normalizeEmail, validateSignup, verifyPassword } from "./password.mjs";
 import {
   decorateChapters,
   ensureTopicOrder,
-  extrasUnlocked,
   isChapterUnlocked,
   METRIC_LABELS,
   needsAssessment,
-  normalizeGoal,
   situationProgress,
-  userGoal,
 } from "./progress.mjs";
+import {
+  drillRecommendation,
+  getProgram,
+  programForFocusArea,
+  programState,
+  publicPrograms,
+  todayRecommendation,
+} from "./programs.mjs";
+import { weeklyReport } from "./report.mjs";
 import { buildScorecard, scoreAcoustic, scoreWithModel, summarizeProfile } from "./score.mjs";
 
 const app = express();
@@ -61,8 +68,8 @@ const linkGoogleId = db.prepare(`
   WHERE id = @id AND google_id IS NULL
 `);
 const insertSession = db.prepare(`
-  INSERT INTO practice_sessions (id, user_id, chapter_id, status, started_at)
-  VALUES (@id, @user_id, @chapter_id, 'live', @started_at)
+  INSERT INTO practice_sessions (id, user_id, chapter_id, status, started_at, difficulty_mode, kind, focus)
+  VALUES (@id, @user_id, @chapter_id, 'live', @started_at, @difficulty_mode, @kind, @focus)
 `);
 const selectSession = db.prepare("SELECT * FROM practice_sessions WHERE id = ?");
 const completeSession = db.prepare(`
@@ -97,6 +104,7 @@ const markTalkStarted = db.prepare(`
   UPDATE practice_sessions SET talk_started_at = @talk_started_at
   WHERE id = @id AND talk_started_at IS NULL
 `);
+const DIFFICULTY_MODES = new Set(["gentle", "standard", "challenge"]);
 
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
@@ -140,7 +148,15 @@ function requireUser(req, res, next) {
 function sessionInstructions(row, scored) {
   const chapter = getChapter(row.chapter_id);
   if (!chapter) return undefined;
-  return withMemory(chapter.instructions, buildCoachMemory(scored));
+  const level = inferLevel(scored);
+  const firstAssessment = row.chapter_id === ASSESSMENT_ID && scored.length === 0;
+  return withMemory(chapter.instructions, buildCoachMemory(scored), {
+    level,
+    firstAssessment,
+    difficultyMode: normalizeDifficultyMode(row.difficulty_mode),
+    drill: row.kind === "drill",
+    focus: row.focus || null,
+  });
 }
 
 function publicSession(row, { instructions = false, scored = [] } = {}) {
@@ -148,11 +164,14 @@ function publicSession(row, { instructions = false, scored = [] } = {}) {
   return {
     id: row.id,
     status: row.status,
+    difficultyMode: DIFFICULTY_MODES.has(row.difficulty_mode) ? row.difficulty_mode : "standard",
+    kind: row.kind === "drill" ? "drill" : row.chapter_id === ASSESSMENT_ID ? "assessment" : "practice",
+    focus: row.focus || null,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     talkStartedAt: row.talk_started_at,
     remainingMs: row.status === "live" ? remainingMs(row) : null,
-    maxMs: 8 * 60 * 1000,
+    maxMs: capMs(row),
     overall: row.overall,
     weakness: row.weakness,
     nextFocus: row.next_focus,
@@ -250,6 +269,40 @@ app.post(
   }
 });
 
+const upsertPendingSignup = db.prepare(`
+  INSERT INTO pending_signups (email, name, password_hash, code_hash, attempts, expires_at, last_sent_at, created_at)
+  VALUES (@email, @name, @password_hash, @code_hash, 0, @expires_at, @last_sent_at, @created_at)
+  ON CONFLICT(email) DO UPDATE SET
+    name = excluded.name,
+    password_hash = excluded.password_hash,
+    code_hash = excluded.code_hash,
+    attempts = 0,
+    expires_at = excluded.expires_at,
+    last_sent_at = excluded.last_sent_at
+`);
+const selectPendingSignup = db.prepare("SELECT * FROM pending_signups WHERE email = ?");
+const bumpPendingAttempts = db.prepare(
+  "UPDATE pending_signups SET attempts = attempts + 1 WHERE email = ?",
+);
+const refreshPendingCode = db.prepare(`
+  UPDATE pending_signups
+  SET code_hash = @code_hash, attempts = 0, expires_at = @expires_at, last_sent_at = @last_sent_at
+  WHERE email = @email
+`);
+const deletePendingSignup = db.prepare("DELETE FROM pending_signups WHERE email = ?");
+const sweepPendingSignups = db.prepare("DELETE FROM pending_signups WHERE expires_at < ?");
+
+const CODE_TTL_MS = 15 * 60 * 1000;
+const MAX_CODE_ATTEMPTS = 5;
+
+function newVerificationCode() {
+  return String(randomInt(100000, 1000000));
+}
+
+function hashCode(email, code) {
+  return createHash("sha256").update(`${email}:${code}`).digest("hex");
+}
+
 app.post(
   "/api/auth/signup",
   rateLimit({
@@ -283,6 +336,87 @@ app.post(
   } catch (error) {
     console.error("Signup failed", error);
     res.status(500).json({ error: "Could not create the account." });
+  }
+});
+
+app.post(
+  "/api/auth/verify",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: "Too many verification attempts. Wait a few minutes.",
+  }),
+  (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const code = String(req.body?.code || "").trim();
+  const pending = email ? selectPendingSignup.get(email) : null;
+
+  if (!pending) {
+    res.status(400).json({ error: "Start the signup again — we have no pending code for this email." });
+    return;
+  }
+  if (Date.parse(pending.expires_at) < Date.now()) {
+    res.status(400).json({ error: "That code expired. Request a new one." });
+    return;
+  }
+  if (pending.attempts >= MAX_CODE_ATTEMPTS) {
+    res.status(429).json({ error: "Too many wrong codes. Request a new one." });
+    return;
+  }
+  if (!/^\d{6}$/.test(code) || hashCode(email, code) !== pending.code_hash) {
+    bumpPendingAttempts.run(email);
+    res.status(400).json({ error: "That code is not right. Check the email and try again." });
+    return;
+  }
+
+  // Handle the rare race where the email got registered while pending.
+  if (selectUserByEmail.get(email)) {
+    deletePendingSignup.run(email);
+    res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+    return;
+  }
+
+  const id = randomUUID();
+  insertPasswordUser.run({
+    id,
+    email,
+    name: pending.name,
+    password_hash: pending.password_hash,
+    created_at: new Date().toISOString(),
+  });
+  deletePendingSignup.run(email);
+  req.session.userId = id;
+  res.status(201).json({ user: publicUser(selectUserById.get(id)) });
+});
+
+app.post(
+  "/api/auth/resend",
+  rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 3,
+    message: "Too many resend requests. Wait a few minutes.",
+  }),
+  async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const pending = email ? selectPendingSignup.get(email) : null;
+  if (!pending) {
+    res.status(400).json({ error: "Start the signup again — we have no pending code for this email." });
+    return;
+  }
+  try {
+    const code = newVerificationCode();
+    const now = new Date();
+    refreshPendingCode.run({
+      email,
+      code_hash: hashCode(email, code),
+      expires_at: new Date(now.getTime() + CODE_TTL_MS).toISOString(),
+      last_sent_at: now.toISOString(),
+    });
+    await sendVerificationEmail(email, pending.name, code);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Resend failed", error);
+    res.status(500).json({ error: "Could not send the email. Try again." });
   }
 });
 
@@ -321,11 +455,10 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-const updateGoal = db.prepare(`
+const updateFocusArea = db.prepare("UPDATE users SET focus_area = @focus_area WHERE id = @id");
+const updateProgram = db.prepare(`
   UPDATE users
-  SET unlock_metric = @unlock_metric,
-      unlock_threshold = @unlock_threshold,
-      unlock_thresholds = @unlock_thresholds
+  SET program_id = @program_id, program_started_at = @program_started_at
   WHERE id = @id
 `);
 const deleteUserSessions = db.prepare("DELETE FROM practice_sessions WHERE user_id = ?");
@@ -341,86 +474,110 @@ const abandonSession = db.prepare(`
   WHERE id = @id AND user_id = @user_id AND status = 'live'
 `);
 
-function publicGoal(goal) {
-  return {
-    metric: goal.unlockMetric,
-    threshold: goal.unlockThreshold,
-    label: METRIC_LABELS[goal.unlockMetric],
-    thresholds: goal.thresholds,
-  };
+function normalizeDifficultyMode(value) {
+  return DIFFICULTY_MODES.has(value) ? value : "standard";
 }
 
-function userProgress(user, scored) {
-  const goal = userGoal(user);
-  const order = ensureTopicOrder(db, user);
-  return {
-    goal: publicGoal(goal),
-    chapters: decorateChapters(order, scored, goal),
-    needsAssessment: needsAssessment(scored),
-    hasRetried: extrasUnlocked(scored),
-    progress: situationProgress(scored, goal),
-  };
+function autoDifficulty(levelId) {
+  if (levelId === "starter") return "gentle";
+  if (levelId === "confident") return "challenge";
+  return "standard";
 }
 
 app.get("/api/me", requireUser, (req, res) => {
   sweepLiveSessions(req.user.id);
   const history = listSessions.all(req.user.id);
   const scored = listScoredSessions.all(req.user.id);
-  const progress = userProgress(req.user, scored);
+  const order = ensureTopicOrder(db, req.user);
+  const profile = summarizeProfile(scored);
   res.json({
     user: publicUser(req.user),
-    profile: summarizeProfile(scored),
-    goal: progress.goal,
+    profile,
     metricOptions: METRIC_LABELS,
-    chapters: progress.chapters,
-    needsAssessment: progress.needsAssessment,
-    hasRetried: progress.hasRetried,
-    progress: progress.progress,
+    chapters: decorateChapters(order, scored),
+    needsAssessment: needsAssessment(scored),
+    progress: situationProgress(scored),
+    level: inferLevel(scored),
     assessment: publicChapter(getChapter(ASSESSMENT_ID)),
+    today: todayRecommendation(req.user, scored, profile),
+    drill: drillRecommendation(scored, profile),
+    program: programState(req.user, scored),
+    programs: publicPrograms(),
     recent: history.slice(0, 6).map((row) => publicSession(row, { scored })),
   });
 });
 
-app.post("/api/goal", requireUser, (req, res) => {
-  const current = userGoal(req.user);
-  const incoming =
-    req.body?.thresholds && typeof req.body.thresholds === "object"
-      ? req.body.thresholds
-      : current.thresholds;
-  const goal = normalizeGoal(req.body?.metric, req.body?.threshold, incoming);
-  updateGoal.run({
+const FOCUS_AREAS = new Set(["interview", "workplace", "client"]);
+
+app.post("/api/onboarding", requireUser, (req, res) => {
+  const focusArea = String(req.body?.focusArea || "");
+  if (!FOCUS_AREAS.has(focusArea)) {
+    res.status(400).json({ error: "Pick what you need English for." });
+    return;
+  }
+  updateFocusArea.run({ id: req.user.id, focus_area: focusArea });
+  const program = programForFocusArea(focusArea);
+  updateProgram.run({
     id: req.user.id,
-    unlock_metric: goal.unlockMetric,
-    unlock_threshold: goal.unlockThreshold,
-    unlock_thresholds: JSON.stringify(goal.thresholds),
+    program_id: program.id,
+    program_started_at: new Date().toISOString(),
   });
   const user = selectUserById.get(req.user.id);
   const scored = listScoredSessions.all(req.user.id);
-  res.json({
-    goal: publicGoal(goal),
-    chapters: userProgress(user, scored).chapters,
+  res.json({ user: publicUser(user), program: programState(user, scored) });
+});
+
+app.post("/api/program", requireUser, (req, res) => {
+  const programId = req.body?.programId;
+  if (programId === null) {
+    updateProgram.run({ id: req.user.id, program_id: null, program_started_at: null });
+    res.json({ program: null });
+    return;
+  }
+  const program = getProgram(programId);
+  if (!program) {
+    res.status(400).json({ error: "Choose a valid program." });
+    return;
+  }
+  updateProgram.run({
+    id: req.user.id,
+    program_id: program.id,
+    program_started_at: new Date().toISOString(),
   });
+  const user = selectUserById.get(req.user.id);
+  const scored = listScoredSessions.all(req.user.id);
+  res.json({ program: programState(user, scored) });
+});
+
+app.get("/api/report", requireUser, async (req, res) => {
+  try {
+    const scored = listScoredSessions.all(req.user.id);
+    const report = await weeklyReport(req.user, scored);
+    res.json({ report });
+  } catch (error) {
+    console.error("Weekly report failed", error);
+    res.status(500).json({ error: "Could not build this week's report." });
+  }
 });
 
 app.post("/api/history/reset", requireUser, (req, res) => {
   deleteUserSessions.run(req.user.id);
   resetTopicOrder.run(req.user.id);
-  const user = selectUserById.get(req.user.id);
-  const progress = userProgress(user, []);
-  res.json({
-    ok: true,
-    profile: summarizeProfile([]),
-    goal: progress.goal,
-    chapters: progress.chapters,
-    recent: [],
-  });
+  if (req.user.program_id) {
+    updateProgram.run({
+      id: req.user.id,
+      program_id: req.user.program_id,
+      program_started_at: new Date().toISOString(),
+    });
+  }
+  res.json({ ok: true });
 });
 
 app.get("/api/sessions", requireUser, (req, res) => {
   const scored = listScoredSessions.all(req.user.id);
   res.json({
     sessions: listSessions.all(req.user.id).map((row) => publicSession(row, { scored })),
-    progress: situationProgress(scored, userGoal(req.user)),
+    progress: situationProgress(scored),
   });
 });
 
@@ -440,13 +597,8 @@ app.post(
     return;
   }
   const scored = listScoredSessions.all(req.user.id);
-  const order = ensureTopicOrder(db, req.user);
-  if (!isChapterUnlocked(order, scored, userGoal(req.user), chapter.id)) {
-    res.status(403).json({
-      error: needsAssessment(scored)
-        ? "Complete the opening assessment first."
-        : "That situation is still locked. Hit your bar on the previous one first.",
-    });
+  if (!isChapterUnlocked(scored, chapter.id)) {
+    res.status(403).json({ error: "Complete the opening assessment first." });
     return;
   }
 
@@ -463,15 +615,52 @@ app.post(
   });
 
   const id = randomUUID();
+  const kind =
+    chapter.id === ASSESSMENT_ID ? "assessment" : req.body?.kind === "drill" ? "drill" : "practice";
+  const focus =
+    typeof req.body?.focus === "string" && METRIC_LABELS[req.body.focus] ? req.body.focus : null;
+  const difficultyMode = DIFFICULTY_MODES.has(req.body?.difficultyMode)
+    ? req.body.difficultyMode
+    : chapter.id === ASSESSMENT_ID
+      ? "gentle"
+      : autoDifficulty(inferLevel(scored).id);
   insertSession.run({
     id,
     user_id: req.user.id,
     chapter_id: chapter.id,
     started_at: new Date().toISOString(),
+    difficulty_mode: difficultyMode,
+    kind,
+    focus,
   });
   res.status(201).json({
     session: publicSession(selectSession.get(id), { instructions: true, scored }),
   });
+});
+
+const updateSessionMode = db.prepare(`
+  UPDATE practice_sessions SET difficulty_mode = @difficulty_mode
+  WHERE id = @id AND user_id = @user_id AND status = 'live' AND talk_started_at IS NULL
+`);
+
+app.post("/api/sessions/:id/mode", requireUser, (req, res) => {
+  const row = selectSession.get(req.params.id);
+  if (!row || row.user_id !== req.user.id) {
+    res.status(404).json({ error: "Session not found." });
+    return;
+  }
+  if (row.status !== "live" || row.talk_started_at) {
+    res.status(409).json({ error: "Difficulty can only change before the call starts." });
+    return;
+  }
+  const mode = req.body?.difficultyMode;
+  if (!DIFFICULTY_MODES.has(mode)) {
+    res.status(400).json({ error: "Pick gentle, standard, or challenge." });
+    return;
+  }
+  updateSessionMode.run({ id: row.id, user_id: req.user.id, difficulty_mode: mode });
+  const scored = listScoredSessions.all(req.user.id);
+  res.json({ session: publicSession(selectSession.get(row.id), { instructions: true, scored }) });
 });
 
 app.get("/api/sessions/:id", requireUser, (req, res) => {
@@ -510,7 +699,9 @@ app.post(
       user_id: req.user.id,
       ended_at: new Date().toISOString(),
     });
-    res.status(400).json({ error: "That call hit the 8-minute cap. Start the situation again." });
+    res.status(400).json({
+      error: `That call hit the ${Math.round(capMs(row) / 60000)}-minute cap. Start the situation again.`,
+    });
     return;
   }
   if (activeTalkSessions(req.user.id, row.id).length) {
@@ -526,7 +717,7 @@ app.post(
   }
 
   const scored = listScoredSessions.all(req.user.id);
-  const instructions = withMemory(chapter.instructions, buildCoachMemory(scored));
+  const instructions = sessionInstructions(row, scored);
 
   try {
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {

@@ -140,9 +140,10 @@ export function useVoiceSession(options: {
               },
               turnDetection: {
                 type: "semantic_vad",
-                eagerness: "medium",
+                // Noise-tolerant defaults: avoid false interruptions on ambient sound.
+                eagerness: "low",
                 createResponse: true,
-                interruptResponse: true,
+                interruptResponse: false,
               },
             },
             output: {

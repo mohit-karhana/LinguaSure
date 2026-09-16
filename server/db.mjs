@@ -38,6 +38,27 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sessions_user_started
     ON practice_sessions (user_id, started_at DESC);
+
+  CREATE TABLE IF NOT EXISTS pending_signups (
+    email TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    last_sent_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS weekly_reports (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    week_start TEXT NOT NULL,
+    report_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (user_id, week_start),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
 `);
 
 migrateUsers();
@@ -98,6 +119,15 @@ function migrateProgress() {
   if (!columns.has("unlock_thresholds")) {
     db.exec("ALTER TABLE users ADD COLUMN unlock_thresholds TEXT");
   }
+  if (!columns.has("focus_area")) {
+    db.exec("ALTER TABLE users ADD COLUMN focus_area TEXT");
+  }
+  if (!columns.has("program_id")) {
+    db.exec("ALTER TABLE users ADD COLUMN program_id TEXT");
+  }
+  if (!columns.has("program_started_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN program_started_at TEXT");
+  }
 }
 
 migrateSessions();
@@ -110,6 +140,15 @@ function migrateSessions() {
   if (!columns.has("talk_started_at")) {
     db.exec("ALTER TABLE practice_sessions ADD COLUMN talk_started_at TEXT");
   }
+  if (!columns.has("difficulty_mode")) {
+    db.exec("ALTER TABLE practice_sessions ADD COLUMN difficulty_mode TEXT");
+  }
+  if (!columns.has("kind")) {
+    db.exec("ALTER TABLE practice_sessions ADD COLUMN kind TEXT");
+  }
+  if (!columns.has("focus")) {
+    db.exec("ALTER TABLE practice_sessions ADD COLUMN focus TEXT");
+  }
 }
 
 export function publicUser(row) {
@@ -118,5 +157,6 @@ export function publicUser(row) {
     email: row.email,
     name: row.name,
     picture: row.picture,
+    focusArea: row.focus_area || null,
   };
 }

@@ -351,6 +351,113 @@ button:disabled {
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
 }
 
+.today-hero {
+  margin: 28px 0 10px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+}
+
+.today-hero .eyebrow {
+  margin-bottom: 6px;
+}
+
+.today-hero h1 {
+  margin: 0 0 18px;
+}
+
+.micro-note {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.focus-options {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.focus-option {
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-option strong {
+  font-family: Newsreader, Georgia, serif;
+  font-size: 1.3rem;
+}
+
+.focus-option p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.report-card {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.report-card h3 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.program-steps {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.program-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--ink);
+}
+
+.program-steps li.done {
+  color: var(--muted);
+}
+
+.step-mark {
+  color: var(--accent);
+  min-width: 14px;
+}
+
+.program-switch {
+  margin-top: 14px;
+  color: var(--muted);
+}
+
+.program-switch summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.program-switch .controls {
+  margin-top: 10px;
+}
+
+.program-cta {
+  margin: 24px 0;
+}
+
 .profile-card {
   margin: 36px 0;
 }
@@ -412,6 +519,52 @@ button:disabled {
 .next-focus {
   color: var(--ink);
   line-height: 1.55;
+}
+
+.practice-guide {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.practice-guide h2 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.practice-guide ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.turn-hint {
+  margin: 14px 0 0;
+  color: var(--accent);
+  font-size: 0.92rem;
+}
+
+.focus-card {
+  margin-top: 22px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+}
+
+.focus-card h2 {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.focus-card p {
+  margin: 0;
+  color: var(--accent);
 }
 
 .metrics {
@@ -507,60 +660,6 @@ button:disabled {
   opacity: 0.62;
 }
 
-.goal-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: end;
-  margin-top: 16px;
-}
-
-.goal-form.stacked {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.goal-hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.goal-metrics {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.goal-metric {
-  display: grid;
-  grid-template-columns: auto 1fr 88px;
-  align-items: center;
-  gap: 12px;
-  color: var(--ink);
-  font-size: 0.92rem;
-}
-
-.goal-form label {
-  display: grid;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.goal-form select,
-.goal-form input[type="number"] {
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--ink);
-}
-
 .chapter-card strong {
   font-family: Newsreader, Georgia, serif;
   font-size: 1.4rem;
@@ -595,6 +694,55 @@ button:disabled {
   margin: 0 0 10px;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.action-list {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.action-list li {
+  margin-bottom: 8px;
+}
+
+.focus-actions {
+  margin-top: 12px;
+}
+
+.level-track {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(244, 239, 230, 0.08);
+  margin-top: 8px;
+}
+
+.level-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mode-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.mode-pill.active {
+  background: var(--ink);
+  border-color: transparent;
+  color: #16130f;
 }
 
 @media (max-width: 640px) {

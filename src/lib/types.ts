@@ -5,32 +5,28 @@ export type Chapter = {
   brief: string;
   duration: string;
   unlocked?: boolean;
-  hidden?: boolean;
   lane?: "core" | "extra";
   best?: number | null;
 };
 
-export type UnlockMetric =
+export type MetricKey =
   | "fluency"
   | "responseSpeed"
   | "grammar"
   | "vocabulary"
   | "clarity"
-  | "tone"
-  | "overall";
+  | "tone";
 
-export type Goal = {
-  metric: UnlockMetric;
-  threshold: number;
-  label: string;
-  thresholds: Record<UnlockMetric, number>;
-};
+export type DifficultyMode = "gentle" | "standard" | "challenge";
+
+export type SessionKind = "assessment" | "practice" | "drill";
 
 export type User = {
   id: string;
   email: string;
   name: string;
   picture: string | null;
+  focusArea: "interview" | "workplace" | "client" | null;
 };
 
 export type TranscriptLine = {
@@ -88,6 +84,9 @@ export type Scorecard = {
 export type PracticeSession = {
   id: string;
   status: "live" | "scored" | "abandoned";
+  difficultyMode: DifficultyMode;
+  kind: SessionKind;
+  focus: string | null;
   startedAt: string;
   endedAt: string | null;
   talkStartedAt?: string | null;
@@ -106,7 +105,6 @@ export type ProgressPoint = {
   sessionId: string;
   at: string;
   overall: number | null;
-  metric: number | null;
 };
 
 export type SituationProgress = {
@@ -123,16 +121,88 @@ export type Profile = {
   metrics: MetricSet | null;
 };
 
+export type ProgramStep = {
+  chapterId: string;
+  kind: "session" | "drill";
+  focus: string | null;
+  title: string;
+  chapterTitle: string;
+  done: boolean;
+};
+
+export type ProgramState = {
+  id: string;
+  title: string;
+  tagline: string;
+  totalDays: number;
+  day: number;
+  completed: number;
+  done: boolean;
+  next: ProgramStep | null;
+  steps: ProgramStep[];
+};
+
+export type ProgramSummary = {
+  id: string;
+  title: string;
+  tagline: string;
+  totalDays: number;
+};
+
+export type TodayRecommendation = {
+  type: "assessment" | "program" | "coach";
+  chapterId: string;
+  kind: SessionKind | "session";
+  focus: string | null;
+  title: string;
+  reason: string;
+};
+
+export type DrillRecommendation = {
+  chapterId: string;
+  focus: string;
+  title: string;
+  label: string;
+};
+
+export type WeeklyReport = {
+  weekStart: string;
+  sessions: number;
+  average: number | null;
+  previousAverage: number | null;
+  delta: number | null;
+  headline: string;
+  wins: string[];
+  focus: string;
+  plan: string[];
+};
+
 export type MeResponse = {
   user: User;
   profile: Profile;
-  goal: Goal;
+  level: {
+    id: "starter" | "growing" | "confident";
+    label: string;
+    note: string;
+    current: {
+      average: number;
+      scoredSessions: number;
+    };
+    next: {
+      label: string;
+      requirement: string;
+      progress: number;
+    } | null;
+  };
   metricOptions: Record<string, string>;
   chapters: Chapter[];
   needsAssessment: boolean;
-  hasRetried: boolean;
   progress: SituationProgress[];
   assessment: Chapter;
+  today: TodayRecommendation;
+  drill: DrillRecommendation | null;
+  program: ProgramState | null;
+  programs: ProgramSummary[];
   recent: PracticeSession[];
 };
 

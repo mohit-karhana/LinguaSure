@@ -24,7 +24,13 @@ export async function getMicrophoneStream(): Promise<MediaStream> {
   }
 
   try {
-    return await navigator.mediaDevices.getUserMedia({ audio: true });
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        noiseSuppression: true,
+        echoCancellation: true,
+        autoGainControl: true,
+      },
+    });
   } catch (error) {
     if (error instanceof DOMException && error.name === "NotAllowedError") {
       throw new Error("Microphone permission was blocked. Allow it in the browser address bar, then try again.");

@@ -18,7 +18,7 @@ function sessionLabel(session: PracticeSession) {
 }
 
 export default function History() {
-  const { me, refresh } = useAuth();
+  const { refresh } = useAuth();
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [progress, setProgress] = useState<SituationProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export default function History() {
   async function resetHistory() {
     if (
       !window.confirm(
-        "Delete every session and lock situations again? Your unlock bar settings stay.",
+        "Delete every session and start over? Your program restarts at day 1.",
       )
     ) {
       return;
@@ -68,11 +68,7 @@ export default function History() {
       {progress.some((group) => group.points.filter((point) => point.overall != null).length >= 2) ? (
         <section className="chart-grid">
           {progress.map((group) => (
-            <ScoreChart
-              key={group.chapterId}
-              group={group}
-              metricLabel={me?.goal.label || "Unlock metric"}
-            />
+            <ScoreChart key={group.chapterId} group={group} />
           ))}
         </section>
       ) : null}

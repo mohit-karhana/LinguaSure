@@ -1,4 +1,17 @@
-export const SESSION_CAP_MS = 8 * 60 * 1000;
+export const SESSION_CAPS_MS = {
+  assessment: 8 * 60 * 1000,
+  practice: 5 * 60 * 1000,
+  drill: 2 * 60 * 1000,
+};
+
+export function sessionKind(row) {
+  if (row.kind && SESSION_CAPS_MS[row.kind]) return row.kind;
+  return row.chapter_id === "assessment" ? "assessment" : "practice";
+}
+
+export function capMs(row) {
+  return SESSION_CAPS_MS[sessionKind(row)];
+}
 
 const buckets = new Map();
 
@@ -25,7 +38,7 @@ export function rateLimit({ windowMs, max, message, keyFn = clientKey }) {
 
 export function remainingMs(row, now = Date.now()) {
   const start = Date.parse(row.talk_started_at || row.started_at || "") || now;
-  return Math.max(0, SESSION_CAP_MS - (now - start));
+  return Math.max(0, capMs(row) - (now - start));
 }
 
 export function isExpired(row, now = Date.now()) {
