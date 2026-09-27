@@ -416,6 +416,52 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.coach-sheet {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+}
+
+.coach-sheet h2 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.coach-sheet p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.coach-sheet-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.coach-sheet-grid article {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.coach-sheet-grid h3 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coach-sheet-grid ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .program-steps {
   margin: 14px 0 0;
   padding: 0;
@@ -502,6 +548,63 @@ button:disabled {
   color: var(--muted);
   cursor: pointer;
   font: inherit;
+}
+
+.inline-link {
+  margin: 0 0 0 6px;
+  font-size: 0.82rem;
+}
+
+.onboarding-rail {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+
+.starter-steps {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.starter-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.starter-steps li.done {
+  color: var(--muted);
+}
+
+.step-index {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+}
+
+.library-search {
+  display: grid;
+  gap: 6px;
+  max-width: 460px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.library-search input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
 }
 
 .session-static {
@@ -708,6 +811,19 @@ button:disabled {
 
 .focus-actions {
   margin-top: 12px;
+}
+
+.detail-block {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+}
+
+.detail-block summary {
+  cursor: pointer;
+  color: var(--muted);
 }
 
 .level-track {

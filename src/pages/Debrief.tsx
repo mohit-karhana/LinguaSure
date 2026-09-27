@@ -4,6 +4,7 @@ import { MetricBar } from "../components/MetricBar";
 import { ScoreChart } from "../components/ScoreChart";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
+import { asMetricKey, learningGuide, strongestMetric } from "../lib/learning";
 import type { PracticeSession } from "../lib/types";
 
 const METRIC_LABELS = {
@@ -135,6 +136,8 @@ export default function Debrief() {
   const trend = me?.progress.find((group) => group.chapterId === session.chapter.id);
   const actionPlan = buildActionPlan(scores);
   const weakest = weakestMetric(scores);
+  const strongest = strongestMetric(scores.metrics);
+  const weakGuide = learningGuide(asMetricKey(weakest) || "clarity");
   const firstAttempt = trend?.points.find((point) => point.overall != null) ?? null;
   const attemptDelta =
     firstAttempt &&
@@ -144,6 +147,7 @@ export default function Debrief() {
       ? scores.overall - firstAttempt.overall
       : null;
   const program = me?.program && !me.program.done ? me.program : null;
+  const isNewUser = (me?.profile.sessionCount ?? 0) < 4;
 
   return (
     <main className="stage wide">
@@ -203,6 +207,28 @@ export default function Debrief() {
         ) : null}
       </section>
 
+      <section className="profile-card">
+        <h2>What to keep vs what to fix</h2>
+        <div className="coach-sheet-grid">
+          <article>
+            <h3>Keep this strength</h3>
+            <p>
+              {strongest
+                ? `${METRIC_LABELS[strongest]} is your current strength. Keep the same style in harder questions.`
+                : "You have early momentum. Keep answers short and complete."}
+            </p>
+          </article>
+          <article>
+            <h3>Fix this next</h3>
+            <p>
+              {weakest
+                ? `${METRIC_LABELS[weakest as keyof typeof METRIC_LABELS]} is the fastest way to raise your overall score.`
+                : "Focus on one clear headline before details."}
+            </p>
+          </article>
+        </div>
+      </section>
+
       {trend ? <ScoreChart group={trend} /> : null}
 
       <section className="profile-card">
@@ -227,35 +253,123 @@ export default function Debrief() {
         ) : null}
       </section>
 
-      <section className="evidence-grid">
-        <article>
-          <h2>Acoustic / temporal</h2>
-          <p>{scores.acoustic.speakingSpeed.note}</p>
-          <p>{scores.acoustic.pauses.note}</p>
-          <p>
-            Fillers: {scores.acoustic.fillers.count} ({scores.acoustic.fillers.per100Words} per 100
-            words)
-            {scores.acoustic.fillers.examples?.length
-              ? ` — ${scores.acoustic.fillers.examples.join(", ")}`
-              : ""}
-          </p>
-        </article>
-        <article>
-          <h2>Linguistic</h2>
-          {(scores.linguistic.grammar.examples ?? []).map((example) => (
-            <p key={example}>{example}</p>
-          ))}
-          {(scores.linguistic.vocabulary.examples ?? []).map((example) => (
-            <p key={example}>{example}</p>
-          ))}
-        </article>
-        <article>
-          <h2>Communicative</h2>
-          <p>{scores.communicative.clarity.note}</p>
-          <p>{scores.communicative.unexpected.note}</p>
-          <p>{scores.communicative.tone.note}</p>
-        </article>
+      <section className="profile-card">
+        <h2>How to improve {weakGuide.label.toLowerCase()}</h2>
+        <p className="micro-note">{weakGuide.why}</p>
+        <p>
+          <strong>Framework:</strong> {weakGuide.framework}
+        </p>
+        <p>
+          <strong>2-minute drill:</strong> {weakGuide.drill}
+        </p>
+        <div className="coach-sheet-grid">
+          <article>
+            <h3>Try these openings</h3>
+            <ul>
+              {weakGuide.starters.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>Recovery lines</h3>
+            <ul>
+              {weakGuide.rescue.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
       </section>
+
+      {isNewUser ? (
+        <section className="profile-card">
+          <h2>Next action (simple mode)</h2>
+          <p className="micro-note">
+            Do just one thing now: run a drill, then retry this same situation.
+          </p>
+          <div className="controls" style={{ justifyContent: "flex-start" }}>
+            {weakest ? (
+              <button
+                type="button"
+                className="ghost compact"
+                onClick={() => void retryForFocus(weakest)}
+                disabled={retrying}
+              >
+                Start 2-minute drill
+              </button>
+            ) : null}
+            <button type="button" className="primary compact" onClick={() => void retry()} disabled={retrying}>
+              Retry this situation
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {isNewUser ? (
+        <details className="detail-block">
+          <summary>See detailed evidence</summary>
+          <section className="evidence-grid">
+            <article>
+              <h2>Acoustic / temporal</h2>
+              <p>{scores.acoustic.speakingSpeed.note}</p>
+              <p>{scores.acoustic.pauses.note}</p>
+              <p>
+                Fillers: {scores.acoustic.fillers.count} ({scores.acoustic.fillers.per100Words} per 100
+                words)
+                {scores.acoustic.fillers.examples?.length
+                  ? ` — ${scores.acoustic.fillers.examples.join(", ")}`
+                  : ""}
+              </p>
+            </article>
+            <article>
+              <h2>Linguistic</h2>
+              {(scores.linguistic.grammar.examples ?? []).map((example) => (
+                <p key={example}>{example}</p>
+              ))}
+              {(scores.linguistic.vocabulary.examples ?? []).map((example) => (
+                <p key={example}>{example}</p>
+              ))}
+            </article>
+            <article>
+              <h2>Communicative</h2>
+              <p>{scores.communicative.clarity.note}</p>
+              <p>{scores.communicative.unexpected.note}</p>
+              <p>{scores.communicative.tone.note}</p>
+            </article>
+          </section>
+        </details>
+      ) : (
+        <section className="evidence-grid">
+          <article>
+            <h2>Acoustic / temporal</h2>
+            <p>{scores.acoustic.speakingSpeed.note}</p>
+            <p>{scores.acoustic.pauses.note}</p>
+            <p>
+              Fillers: {scores.acoustic.fillers.count} ({scores.acoustic.fillers.per100Words} per 100
+              words)
+              {scores.acoustic.fillers.examples?.length
+                ? ` — ${scores.acoustic.fillers.examples.join(", ")}`
+                : ""}
+            </p>
+          </article>
+          <article>
+            <h2>Linguistic</h2>
+            {(scores.linguistic.grammar.examples ?? []).map((example) => (
+              <p key={example}>{example}</p>
+            ))}
+            {(scores.linguistic.vocabulary.examples ?? []).map((example) => (
+              <p key={example}>{example}</p>
+            ))}
+          </article>
+          <article>
+            <h2>Communicative</h2>
+            <p>{scores.communicative.clarity.note}</p>
+            <p>{scores.communicative.unexpected.note}</p>
+            <p>{scores.communicative.tone.note}</p>
+          </article>
+        </section>
+      )}
 
       {session.transcript.length > 0 ? (
         <section className="transcript">

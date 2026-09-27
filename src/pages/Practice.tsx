@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useVoiceSession } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
+import { asMetricKey, learningGuide, metricFromChapter } from "../lib/learning";
 import { microphoneHint } from "../lib/microphone";
 import type { DifficultyMode, PracticeSession } from "../lib/types";
 
@@ -120,6 +121,7 @@ function LivePractice({
   const abandonGen = useRef(0);
   const finishRef = useRef<() => void>(() => {});
   const [modeSaving, setModeSaving] = useState(false);
+  const [showModes, setShowModes] = useState(false);
   const maxMs = session.maxMs ?? 5 * 60 * 1000;
   const capMinutes = Math.round(maxMs / 60000);
   const { status, turn, muted, messages, error, remainingMs, start, stop, toggleMute } =
@@ -133,6 +135,8 @@ function LivePractice({
   const focus = session.focus ?? searchParams.get("focus");
   const focusMessage = focusHint(focus);
   const isDrill = session.kind === "drill";
+  const guideMetric = asMetricKey(focus) || metricFromChapter(session.chapter.id);
+  const guide = learningGuide(guideMetric);
 
   useEffect(() => {
     listRef.current?.lastElementChild?.scrollIntoView({
@@ -202,20 +206,30 @@ function LivePractice({
       <h1>{session.chapter.brief}</h1>
       <p className="lede">{session.chapter.situation}</p>
 
-      {!live && !finishing ? (
-        <div className="mode-row">
-          {MODES.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={`mode-pill ${session.difficultyMode === mode ? "active" : ""}`}
-              onClick={() => void changeMode(mode)}
-              disabled={modeSaving}
-            >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+      {!live && !finishing && !isDrill ? (
+        <>
+          <p className="micro-note">
+            Difficulty: {session.difficultyMode}{" "}
+            <button type="button" className="text-link inline-link" onClick={() => setShowModes((value) => !value)}>
+              {showModes ? "Hide options" : "Adjust"}
             </button>
-          ))}
-        </div>
+          </p>
+          {showModes ? (
+            <div className="mode-row">
+              {MODES.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`mode-pill ${session.difficultyMode === mode ? "active" : ""}`}
+                  onClick={() => void changeMode(mode)}
+                  disabled={modeSaving}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : (
         <p className="micro-note">Difficulty: {session.difficultyMode}</p>
       )}
@@ -227,16 +241,35 @@ function LivePractice({
         </section>
       ) : null}
 
-      {!isDrill ? (
-        <section className="practice-guide">
-          <h2>Before you speak</h2>
-          <ul>
-            <li>Start with one clear sentence, then add details.</li>
-            <li>If you freeze, say your point in simple words first.</li>
-            <li>End each answer with a next step when possible.</li>
-          </ul>
-        </section>
-      ) : null}
+      <section className="coach-sheet">
+        <h2>Live coach sheet · {guide.label}</h2>
+        <p className="micro-note">{guide.why}</p>
+        <p>
+          <strong>This turn:</strong>{" "}
+          {live ? liveHint(turn) : "Start with one clear headline sentence."}
+        </p>
+        <p>
+          <strong>Use this frame:</strong> {guide.framework}
+        </p>
+        <div className="coach-sheet-grid">
+          <article>
+            <h3>Sentence starters</h3>
+            <ul>
+              {guide.starters.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </article>
+          <article>
+            <h3>If you freeze</h3>
+            <ul>
+              {guide.rescue.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </article>
+        </div>
+      </section>
 
       <section className={`orb-wrap ${live ? `is-${turn}` : ""}`} aria-live="polite">
         <div className="orb" />
@@ -278,7 +311,6 @@ function LivePractice({
 
       {micHint ? <p className="error">{micHint}</p> : null}
       {error && error !== micHint ? <p className="error">{error}</p> : null}
-      {live ? <p className="turn-hint">{liveHint(turn)}</p> : null}
 
       <section className="transcript" aria-label="Live transcript">
         <div className="transcript-head">

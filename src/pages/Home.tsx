@@ -62,6 +62,8 @@ export default function Home() {
   const [choosing, setChoosing] = useState(false);
   const [browsing, setBrowsing] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [reportLoaded, setReportLoaded] = useState(false);
 
@@ -83,6 +85,23 @@ export default function Home() {
 
   const liveSession = me.recent.find((session) => session.status === "live");
   const streak = streakFromRecent(me.recent);
+  const isNewUser = me.profile.sessionCount < 3;
+  const chapterMatches = me.chapters.filter((chapter) => {
+    if (!libraryQuery.trim()) return true;
+    const q = libraryQuery.toLowerCase();
+    return chapter.title.toLowerCase().includes(q) || chapter.situation.toLowerCase().includes(q);
+  });
+  const hasDrillScore = me.recent.some((session) => session.kind === "drill" && session.status === "scored");
+  const hasRetry = me.progress.some(
+    (group) => group.points.filter((point) => point.overall != null).length >= 2,
+  );
+  const retryTarget =
+    me.progress.find((group) => group.points.filter((point) => point.overall != null).length === 1)
+      ?.chapterId || me.today.chapterId;
+  const retryTargetTitle =
+    me.chapters.find((chapter) => chapter.id === retryTarget)?.title ||
+    me.assessment?.title ||
+    "this situation";
 
   async function startChapter(
     chapterId: string,
@@ -189,7 +208,7 @@ export default function Home() {
       {/* Block 1: Today's session */}
       <section className="today-hero">
         <p className="eyebrow">{today.reason}</p>
-        <h1>{today.title}</h1>
+        <h1>Do this now: {today.title}</h1>
         <div className="controls" style={{ justifyContent: "flex-start" }}>
           {liveSession ? (
             <Link className="button-link primary-link" to={`/practice/${liveSession.id}`}>
@@ -232,6 +251,76 @@ export default function Home() {
         </p>
       </section>
 
+      <section className="profile-card onboarding-rail">
+        <h2>{isNewUser ? "Your first 3 sessions" : "What to do next"}</h2>
+        <p className="micro-note">
+          {isNewUser
+            ? "Do these in order. After session 3, the app becomes much easier to use."
+            : "Keep this weekly loop: session -> score -> drill -> retry."}
+        </p>
+        <ol className="starter-steps">
+          <li className={me.profile.sessionCount >= 1 ? "done" : ""}>
+            <span className="step-index">1</span>
+            <span>Finish one scored session</span>
+          </li>
+          <li className={hasDrillScore ? "done" : ""}>
+            <span className="step-index">2</span>
+            <span>Run one 2-minute drill on your weak metric</span>
+          </li>
+          <li className={hasRetry ? "done" : ""}>
+            <span className="step-index">3</span>
+            <span>Retry one situation to see score movement</span>
+          </li>
+        </ol>
+        <div className="controls" style={{ justifyContent: "flex-start" }}>
+          {!liveSession && me.profile.sessionCount < 1 ? (
+            <button
+              type="button"
+              className="primary compact"
+              onClick={() =>
+                void startChapter(today.chapterId, {
+                  kind: today.kind === "drill" ? "drill" : undefined,
+                  focus: today.focus,
+                })
+              }
+              disabled={Boolean(starting)}
+            >
+              Start session 1
+            </button>
+          ) : null}
+          {!liveSession && me.profile.sessionCount >= 1 && !hasDrillScore && me.drill ? (
+            <button
+              type="button"
+              className="primary compact"
+              onClick={() =>
+                void startChapter(me.drill!.chapterId, { kind: "drill", focus: me.drill!.focus })
+              }
+              disabled={Boolean(starting)}
+            >
+              Start session 2 (drill)
+            </button>
+          ) : null}
+          {!liveSession && me.profile.sessionCount >= 1 && hasDrillScore && !hasRetry ? (
+            <button
+              type="button"
+              className="primary compact"
+              onClick={() => void startChapter(retryTarget)}
+              disabled={Boolean(starting)}
+            >
+              Start session 3 (retry {retryTargetTitle})
+            </button>
+          ) : null}
+          {liveSession ? (
+            <Link className="button-link" to={`/practice/${liveSession.id}`}>
+              Resume current session
+            </Link>
+          ) : null}
+          <Link className="button-link" to="/history">
+            View progress
+          </Link>
+        </div>
+      </section>
+
       {/* Block 2: Your score */}
       <section className="profile-card">
         <div className="profile-head">
@@ -265,7 +354,11 @@ export default function Home() {
             ))}
           </div>
         ) : null}
-        {report ? (
+        {isNewUser ? (
+          <p className="micro-note">
+            For now, ignore everything except your weakest metric and the next action above.
+          </p>
+        ) : report ? (
           <div className="report-card">
             <h3>This week&apos;s coach report</h3>
             <p className="weakness">{report.headline}</p>
@@ -289,8 +382,24 @@ export default function Home() {
         )}
       </section>
 
+      {isNewUser && !showAdvanced ? (
+        <section className="profile-card">
+          <h2>Need more options?</h2>
+          <p className="micro-note">
+            Keep it simple for now. Finish your first 3 sessions, then open the full dashboard.
+          </p>
+          <button
+            type="button"
+            className="ghost compact"
+            onClick={() => setShowAdvanced(true)}
+          >
+            Show full dashboard
+          </button>
+        </section>
+      ) : null}
+
       {/* Block 3: Your program */}
-      <section className="profile-card">
+      {!isNewUser || showAdvanced ? <section className="profile-card">
         {me.program ? (
           <>
             <div className="profile-head">
@@ -392,8 +501,19 @@ export default function Home() {
           {browsing ? "Hide the full library" : `Browse all ${me.chapters.length} situations`}
         </button>
         {browsing ? (
-          <div className="chapter-grid">
-            {me.chapters.map((chapter) => (
+          <>
+            <label className="library-search">
+              Search situations
+              <input
+                type="text"
+                value={libraryQuery}
+                onChange={(event) => setLibraryQuery(event.target.value)}
+                placeholder="Interview, meeting, client, presentation..."
+              />
+            </label>
+            <p className="micro-note">{chapterMatches.length} situation(s) matched.</p>
+            <div className="chapter-grid">
+              {chapterMatches.map((chapter) => (
               <button
                 key={chapter.id}
                 type="button"
@@ -409,10 +529,11 @@ export default function Home() {
                   {starting === chapter.id ? " · Starting…" : ""}
                 </span>
               </button>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         ) : null}
-      </section>
+      </section> : null}
 
       {error ? <p className="error">{error}</p> : null}
     </main>
