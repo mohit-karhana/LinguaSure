@@ -17,8 +17,29 @@ type TransportEvent = {
   type?: string;
 };
 
+const TURN_DETECTION = {
+  type: "server_vad" as const,
+  threshold: 0.72,
+  prefixPaddingMs: 250,
+  silenceDurationMs: 900,
+  createResponse: true,
+  interruptResponse: false,
+};
+
 function formatSessionError(sessionError: unknown): string {
+  if (typeof sessionError === "string") return sessionError;
   if (sessionError instanceof Error) return sessionError.message;
+  if (
+    typeof sessionError === "object" &&
+    sessionError &&
+    "error" in sessionError &&
+    typeof sessionError.error === "object" &&
+    sessionError.error &&
+    "message" in sessionError.error &&
+    typeof sessionError.error.message === "string"
+  ) {
+    return sessionError.error.message;
+  }
   if (
     typeof sessionError === "object" &&
     sessionError &&
@@ -44,6 +65,8 @@ export function useVoiceSession(options: {
   const speakingStartedRef = useRef<number | null>(null);
   const lastCoachDoneRef = useRef<number | null>(null);
   const latenciesRef = useRef<number[]>([]);
+  const userMutedRef = useRef(false);
+  const aiSpeakingRef = useRef(false);
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [turn, setTurn] = useState<TurnState>("idle");
   const [muted, setMuted] = useState(false);
@@ -87,9 +110,17 @@ export function useVoiceSession(options: {
 
   const teardown = useCallback(() => {
     closeHardware();
+    userMutedRef.current = false;
+    aiSpeakingRef.current = false;
     setTurn("idle");
     setMuted(false);
   }, [closeHardware]);
+
+  const applyMuteState = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.mute(userMutedRef.current || aiSpeakingRef.current);
+  }, []);
 
   useEffect(() => {
     const hangUp = () => closeHardware();
@@ -110,6 +141,9 @@ export function useVoiceSession(options: {
     speakingStartedRef.current = null;
     lastCoachDoneRef.current = null;
     latenciesRef.current = [];
+    userMutedRef.current = false;
+    aiSpeakingRef.current = false;
+    setMuted(false);
     setStatus("connecting");
     const generation = generationRef.current + 1;
     generationRef.current = generation;
@@ -132,22 +166,11 @@ export function useVoiceSession(options: {
         model: "gpt-realtime-2.1",
         transport: new OpenAIRealtimeWebRTC({ mediaStream }),
         config: {
-          outputModalities: ["audio"],
           audio: {
             input: {
-              transcription: {
-                model: "gpt-4o-mini-transcribe",
-              },
-              turnDetection: {
-                type: "semantic_vad",
-                // Noise-tolerant defaults: avoid false interruptions on ambient sound.
-                eagerness: "low",
-                createResponse: true,
-                interruptResponse: false,
-              },
-            },
-            output: {
-              voice: "marin",
+              noiseReduction: { type: "far_field" },
+              transcription: { model: "gpt-4o-mini-transcribe" },
+              turnDetection: TURN_DETECTION,
             },
           },
         },
@@ -159,14 +182,29 @@ export function useVoiceSession(options: {
         setMessages(next);
       });
 
-      session.on("audio_start", () => setTurn("speaking"));
+      session.on("audio_start", () => {
+        aiSpeakingRef.current = true;
+        applyMuteState();
+        setTurn("speaking");
+      });
       session.on("audio_stopped", () => {
+        aiSpeakingRef.current = false;
+        applyMuteState();
         lastCoachDoneRef.current = Date.now();
         setTurn("idle");
       });
-      session.on("audio_interrupted", () => setTurn("listening"));
+      session.on("audio_interrupted", () => {
+        aiSpeakingRef.current = false;
+        applyMuteState();
+        setTurn("listening");
+      });
 
-      session.on("error", ({ error: sessionError }) => {
+      session.on("error", (event: { error?: unknown } | unknown) => {
+        const sessionError =
+          typeof event === "object" && event && "error" in event
+            ? (event as { error?: unknown }).error
+            : event;
+        console.error("Realtime session error", sessionError);
         setError(formatSessionError(sessionError));
         setStatus("error");
         teardown();
@@ -200,6 +238,7 @@ export function useVoiceSession(options: {
       session.transport.sendEvent({ type: "response.create" });
 
       sessionRef.current = session;
+      applyMuteState();
       setStatus("live");
       setTurn("thinking");
       const capFrom = Date.now();
@@ -219,7 +258,7 @@ export function useVoiceSession(options: {
       setError(message);
       setStatus("error");
     }
-  }, [options.instructions, options.maxMs, options.sessionId, status, teardown]);
+  }, [applyMuteState, options.instructions, options.maxMs, options.sessionId, status, teardown]);
 
   const stop = useCallback(() => {
     const result = snapshot();
@@ -232,10 +271,10 @@ export function useVoiceSession(options: {
     const session = sessionRef.current;
     if (!session || status !== "live") return;
 
-    const next = !session.muted;
-    session.mute(next);
-    setMuted(next);
-  }, [status]);
+    userMutedRef.current = !userMutedRef.current;
+    setMuted(userMutedRef.current);
+    applyMuteState();
+  }, [applyMuteState, status]);
 
   return {
     status,
