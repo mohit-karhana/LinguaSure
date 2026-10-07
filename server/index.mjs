@@ -86,13 +86,16 @@ const completeSession = db.prepare(`
 `);
 const listSessions = db.prepare(`
   SELECT * FROM practice_sessions
-  WHERE user_id = ?
+  WHERE user_id = @user_id
+    AND (@history_start_at IS NULL OR started_at >= @history_start_at)
   ORDER BY started_at DESC
   LIMIT 40
 `);
 const listScoredSessions = db.prepare(`
   SELECT * FROM practice_sessions
-  WHERE user_id = ? AND status = 'scored'
+  WHERE user_id = @user_id
+    AND status = 'scored'
+    AND (@history_start_at IS NULL OR started_at >= @history_start_at)
   ORDER BY started_at DESC
   LIMIT 80
 `);
@@ -461,7 +464,16 @@ const updateProgram = db.prepare(`
   SET program_id = @program_id, program_started_at = @program_started_at
   WHERE id = @id
 `);
-const deleteUserSessions = db.prepare("DELETE FROM practice_sessions WHERE user_id = ?");
+const setHistoryStart = db.prepare(`
+  UPDATE users
+  SET history_start_at = @history_start_at
+  WHERE id = @id
+`);
+const countSessionsBeforeHistoryStart = db.prepare(`
+  SELECT COUNT(1) AS total
+  FROM practice_sessions
+  WHERE user_id = @user_id AND started_at < @history_start_at
+`);
 const resetTopicOrder = db.prepare("UPDATE users SET topic_order = NULL WHERE id = ?");
 const abandonLiveSessions = db.prepare(`
   UPDATE practice_sessions
@@ -484,10 +496,18 @@ function autoDifficulty(levelId) {
   return "standard";
 }
 
+function sessionScope(user) {
+  return {
+    user_id: user.id,
+    history_start_at: user.history_start_at || null,
+  };
+}
+
 app.get("/api/me", requireUser, (req, res) => {
   sweepLiveSessions(req.user.id);
-  const history = listSessions.all(req.user.id);
-  const scored = listScoredSessions.all(req.user.id);
+  const scope = sessionScope(req.user);
+  const history = listSessions.all(scope);
+  const scored = listScoredSessions.all(scope);
   const order = ensureTopicOrder(db, req.user);
   const profile = summarizeProfile(scored);
   res.json({
@@ -522,8 +542,8 @@ app.post("/api/onboarding", requireUser, (req, res) => {
     program_id: program.id,
     program_started_at: new Date().toISOString(),
   });
-  const user = selectUserById.get(req.user.id);
-  const scored = listScoredSessions.all(req.user.id);
+  const user = selectUserById.get(req.user.id) || req.user;
+  const scored = listScoredSessions.all(sessionScope(user));
   res.json({ user: publicUser(user), program: programState(user, scored) });
 });
 
@@ -544,14 +564,14 @@ app.post("/api/program", requireUser, (req, res) => {
     program_id: program.id,
     program_started_at: new Date().toISOString(),
   });
-  const user = selectUserById.get(req.user.id);
-  const scored = listScoredSessions.all(req.user.id);
+  const user = selectUserById.get(req.user.id) || req.user;
+  const scored = listScoredSessions.all(sessionScope(user));
   res.json({ program: programState(user, scored) });
 });
 
 app.get("/api/report", requireUser, async (req, res) => {
   try {
-    const scored = listScoredSessions.all(req.user.id);
+    const scored = listScoredSessions.all(sessionScope(req.user));
     const report = await weeklyReport(req.user, scored);
     res.json({ report });
   } catch (error) {
@@ -560,23 +580,39 @@ app.get("/api/report", requireUser, async (req, res) => {
   }
 });
 
-app.post("/api/history/reset", requireUser, (req, res) => {
-  deleteUserSessions.run(req.user.id);
+function startFreshHistory(req, res) {
+  const startedAt = new Date().toISOString();
+  abandonLiveSessions.run({
+    user_id: req.user.id,
+    ended_at: startedAt,
+  });
+  const archived = countSessionsBeforeHistoryStart.get({
+    user_id: req.user.id,
+    history_start_at: startedAt,
+  });
+  setHistoryStart.run({
+    id: req.user.id,
+    history_start_at: startedAt,
+  });
   resetTopicOrder.run(req.user.id);
   if (req.user.program_id) {
     updateProgram.run({
       id: req.user.id,
       program_id: req.user.program_id,
-      program_started_at: new Date().toISOString(),
+      program_started_at: startedAt,
     });
   }
-  res.json({ ok: true });
-});
+  res.json({ ok: true, startedAt, archivedCount: Number(archived?.total || 0) });
+}
+
+app.post("/api/history/start-fresh", requireUser, startFreshHistory);
+app.post("/api/history/reset", requireUser, startFreshHistory);
 
 app.get("/api/sessions", requireUser, (req, res) => {
-  const scored = listScoredSessions.all(req.user.id);
+  const scope = sessionScope(req.user);
+  const scored = listScoredSessions.all(scope);
   res.json({
-    sessions: listSessions.all(req.user.id).map((row) => publicSession(row, { scored })),
+    sessions: listSessions.all(scope).map((row) => publicSession(row, { scored })),
     progress: situationProgress(scored),
   });
 });
@@ -596,7 +632,7 @@ app.post(
     res.status(400).json({ error: "Choose a valid situation." });
     return;
   }
-  const scored = listScoredSessions.all(req.user.id);
+  const scored = listScoredSessions.all(sessionScope(req.user));
   if (!isChapterUnlocked(scored, chapter.id)) {
     res.status(403).json({ error: "Complete the opening assessment first." });
     return;
@@ -659,7 +695,7 @@ app.post("/api/sessions/:id/mode", requireUser, (req, res) => {
     return;
   }
   updateSessionMode.run({ id: row.id, user_id: req.user.id, difficulty_mode: mode });
-  const scored = listScoredSessions.all(req.user.id);
+  const scored = listScoredSessions.all(sessionScope(req.user));
   res.json({ session: publicSession(selectSession.get(row.id), { instructions: true, scored }) });
 });
 
@@ -669,7 +705,7 @@ app.get("/api/sessions/:id", requireUser, (req, res) => {
     res.status(404).json({ error: "Session not found." });
     return;
   }
-  const scored = listScoredSessions.all(req.user.id);
+  const scored = listScoredSessions.all(sessionScope(req.user));
   res.json({ session: publicSession(row, { instructions: true, scored }) });
 });
 
@@ -716,7 +752,7 @@ app.post(
     return;
   }
 
-  const scored = listScoredSessions.all(req.user.id);
+  const scored = listScoredSessions.all(sessionScope(req.user));
   const instructions = sessionInstructions(row, scored);
 
   try {

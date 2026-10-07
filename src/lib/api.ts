@@ -59,6 +59,10 @@ export const api = {
       body: JSON.stringify({ programId }),
     }),
   report: () => request<{ report: import("./types").WeeklyReport | null }>("/api/report"),
+  startFreshFromToday: () =>
+    request<{ ok: boolean; startedAt: string; archivedCount: number }>("/api/history/start-fresh", {
+      method: "POST",
+    }),
   resetHistory: () =>
     request<{ ok: boolean }>("/api/history/reset", { method: "POST" }),
   sessions: () =>

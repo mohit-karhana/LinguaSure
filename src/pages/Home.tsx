@@ -178,13 +178,28 @@ export default function Home() {
     return (
       <main className="stage">
         <p className="eyebrow">First session</p>
-        <h1>Know where you stand.</h1>
-        <p className="lede">
-          One gentle 8-minute conversation. Then your Communication Score, one
-          named weakness, and day 1 of{" "}
-          {me.program ? `“${me.program.title}”` : "your program"}. We only score
-          what we can hear.
-        </p>
+        <h1>Start here.</h1>
+        <p className="lede">Do one guided conversation now. We will guide the rest step by step.</p>
+        <section className="profile-card onboarding-rail">
+          <h2>What to do now</h2>
+          <ol className="starter-steps">
+            <li>
+              <span className="step-index">1</span>
+              <span>Press Start the assessment.</span>
+            </li>
+            <li>
+              <span className="step-index">2</span>
+              <span>Speak naturally for about 8 minutes.</span>
+            </li>
+            <li>
+              <span className="step-index">3</span>
+              <span>Get your score, your weak area, and your next session.</span>
+            </li>
+          </ol>
+          <p className="micro-note">
+            Next up: day 1 of {me.program ? `“${me.program.title}”` : "your program"}.
+          </p>
+        </section>
         <div className="controls" style={{ justifyContent: "flex-start", marginTop: 28 }}>
           <button
             type="button"

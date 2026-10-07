@@ -39,6 +39,42 @@ function focusHint(focus: string | null) {
   return null;
 }
 
+function quickStartSteps(live: boolean, turn: keyof typeof TURN_LABEL) {
+  if (!live) {
+    return [
+      "Press Start talking.",
+      "Answer with one short sentence first.",
+      "Add one detail, then pause.",
+    ];
+  }
+  if (turn === "listening") {
+    return [
+      "Keep listening until they finish.",
+      "Pick one keyword from their question.",
+      "Start your answer with the headline.",
+    ];
+  }
+  if (turn === "thinking") {
+    return [
+      "Take one short pause.",
+      "Say the headline first.",
+      "Add one clear detail next.",
+    ];
+  }
+  if (turn === "speaking") {
+    return [
+      "The AI is speaking now.",
+      "Do not interrupt.",
+      "Prepare one short first sentence.",
+    ];
+  }
+  return [
+    "Stay calm and keep the sentence short.",
+    "Say the headline first.",
+    "Add one detail only.",
+  ];
+}
+
 export default function Practice() {
   const { sessionId = "" } = useParams();
   const navigate = useNavigate();
@@ -242,33 +278,45 @@ function LivePractice({
       ) : null}
 
       <section className="coach-sheet">
-        <h2>Live coach sheet · {guide.label}</h2>
-        <p className="micro-note">{guide.why}</p>
+        <h2>What to do now</h2>
+        <p className="micro-note">Focus: {guide.label}</p>
+        <ol className="coach-checklist">
+          {quickStartSteps(live, turn).map((step, index) => (
+            <li key={step}>
+              <span className="step-index">{index + 1}</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
         <p>
           <strong>This turn:</strong>{" "}
           {live ? liveHint(turn) : "Start with one clear headline sentence."}
         </p>
         <p>
-          <strong>Use this frame:</strong> {guide.framework}
+          <strong>Simple frame:</strong> {guide.framework}
         </p>
-        <div className="coach-sheet-grid">
-          <article>
-            <h3>Sentence starters</h3>
-            <ul>
-              {guide.starters.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </article>
-          <article>
-            <h3>If you freeze</h3>
-            <ul>
-              {guide.rescue.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </article>
-        </div>
+        <p className="micro-note">{guide.why}</p>
+        <details className="detail-block">
+          <summary>Need sentence help?</summary>
+          <div className="coach-sheet-grid" style={{ marginTop: 12 }}>
+            <article>
+              <h3>Sentence starters</h3>
+              <ul>
+                {guide.starters.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </article>
+            <article>
+              <h3>If you freeze</h3>
+              <ul>
+                {guide.rescue.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </article>
+          </div>
+        </details>
       </section>
 
       <section className={`orb-wrap ${live ? `is-${turn}` : ""}`} aria-live="polite">
@@ -319,8 +367,7 @@ function LivePractice({
         </div>
         {messages.length === 0 ? (
           <p className="empty">
-            The other person will start in character. Speak as yourself. When
-            you finish, we score the turn and keep the evidence.
+            Quick start: press Start talking, answer in short lines, then press End and score.
           </p>
         ) : (
           <ol ref={listRef}>

@@ -128,6 +128,9 @@ function migrateProgress() {
   if (!columns.has("program_started_at")) {
     db.exec("ALTER TABLE users ADD COLUMN program_started_at TEXT");
   }
+  if (!columns.has("history_start_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN history_start_at TEXT");
+  }
 }
 
 migrateSessions();

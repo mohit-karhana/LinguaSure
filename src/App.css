@@ -1556,6 +1556,20 @@ button:disabled {
   line-height: 1.5;
 }
 
+.coach-checklist {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.coach-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .coach-sheet-grid {
   display: grid;
   gap: 12px;

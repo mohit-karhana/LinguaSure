@@ -22,6 +22,7 @@ export default function History() {
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [progress, setProgress] = useState<SituationProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
@@ -36,23 +37,29 @@ export default function History() {
       });
   }, []);
 
-  async function resetHistory() {
+  async function startFreshFromToday() {
     if (
       !window.confirm(
-        "Delete every session and start over? Your program restarts at day 1.",
+        "Start fresh from today? Your earlier sessions will be archived (not deleted), and your program restarts at day 1.",
       )
     ) {
       return;
     }
     setResetting(true);
     setError(null);
+    setNotice(null);
     try {
-      await api.resetHistory();
+      const result = await api.startFreshFromToday();
       await refresh();
       setSessions([]);
       setProgress([]);
+      setNotice(
+        result.archivedCount > 0
+          ? `Started fresh. Archived ${result.archivedCount} earlier session${result.archivedCount === 1 ? "" : "s"}.`
+          : "Started fresh from today.",
+      );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not reset history.");
+      setError(caught instanceof Error ? caught.message : "Could not start fresh.");
     } finally {
       setResetting(false);
     }
@@ -77,12 +84,13 @@ export default function History() {
         <button
           type="button"
           className="ghost compact"
-          onClick={() => void resetHistory()}
+          onClick={() => void startFreshFromToday()}
           disabled={resetting || sessions.length === 0}
         >
-          {resetting ? "Resetting…" : "Reset history"}
+          {resetting ? "Starting fresh…" : "Start fresh from today"}
         </button>
       </div>
+      {notice ? <p className="micro-note">{notice}</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {sessions.length === 0 ? (
         <p className="empty">No sessions yet. Start a situation from the home page.</p>
