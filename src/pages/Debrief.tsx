@@ -136,6 +136,7 @@ export default function Debrief() {
   const trend = me?.progress.find((group) => group.chapterId === session.chapter.id);
   const actionPlan = buildActionPlan(scores);
   const weakest = weakestMetric(scores);
+  const weakestLabel = weakest ? METRIC_LABELS[weakest as keyof typeof METRIC_LABELS] : null;
   const strongest = strongestMetric(scores.metrics);
   const weakGuide = learningGuide(asMetricKey(weakest) || "clarity");
   const firstAttempt = trend?.points.find((point) => point.overall != null) ?? null;
@@ -156,19 +157,51 @@ export default function Debrief() {
         {session.chapter.title}
       </p>
       <h1>{scores.overall != null ? `Score ${scores.overall}` : "Not enough evidence"}</h1>
-      {attemptDelta != null ? (
-        <p className="micro-note">
-          First attempt on this situation: {firstAttempt?.overall} on{" "}
-          {new Date(firstAttempt?.at || "").toLocaleDateString()} ·{" "}
-          {attemptDelta > 0
-            ? `up ${attemptDelta} since then`
-            : attemptDelta < 0
-              ? `down ${Math.abs(attemptDelta)} since then`
-              : "unchanged since then"}
-        </p>
-      ) : null}
       <p className="lede weakness">{scores.weakness}</p>
       <p className="next-focus">Next: {scores.nextFocus}</p>
+
+      <section className="profile-card next-action-card">
+        <h2>Do this now</h2>
+        <p className="micro-note">
+          {weakestLabel
+            ? `Fastest score lift: 2-minute drill on ${weakestLabel.toLowerCase()}.`
+            : "Run one more scored attempt to lock this improvement."}
+        </p>
+        <div className="controls" style={{ justifyContent: "flex-start" }}>
+          {weakest ? (
+            <button
+              type="button"
+              className="primary compact"
+              onClick={() => void retryForFocus(weakest)}
+              disabled={retrying}
+            >
+              {retrying ? "Opening…" : `Start 2-minute drill (${weakestLabel?.toLowerCase() || weakest})`}
+            </button>
+          ) : (
+            <button type="button" className="primary compact" onClick={() => void retry()} disabled={retrying}>
+              {retrying ? "Opening…" : "Retry this situation"}
+            </button>
+          )}
+          {weakest ? (
+            <button type="button" className="ghost compact" onClick={() => void retry()} disabled={retrying}>
+              Retry full situation
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      {attemptDelta != null ? (
+        <section className="profile-card delta-card">
+          <h2>Score movement</h2>
+          <p className={`delta-value ${attemptDelta > 0 ? "up" : attemptDelta < 0 ? "down" : "flat"}`}>
+            {attemptDelta > 0 ? `+${attemptDelta}` : attemptDelta}
+          </p>
+          <p className="micro-note">
+            First attempt: {firstAttempt?.overall} on {new Date(firstAttempt?.at || "").toLocaleDateString()} · latest{" "}
+            {scores.overall}
+          </p>
+        </section>
+      ) : null}
 
       {program?.next ? (
         <section className="profile-card program-cta">
@@ -281,30 +314,6 @@ export default function Debrief() {
           </article>
         </div>
       </section>
-
-      {isNewUser ? (
-        <section className="profile-card">
-          <h2>Next action (simple mode)</h2>
-          <p className="micro-note">
-            Do just one thing now: run a drill, then retry this same situation.
-          </p>
-          <div className="controls" style={{ justifyContent: "flex-start" }}>
-            {weakest ? (
-              <button
-                type="button"
-                className="ghost compact"
-                onClick={() => void retryForFocus(weakest)}
-                disabled={retrying}
-              >
-                Start 2-minute drill
-              </button>
-            ) : null}
-            <button type="button" className="primary compact" onClick={() => void retry()} disabled={retrying}>
-              Retry this situation
-            </button>
-          </div>
-        </section>
-      ) : null}
 
       {isNewUser ? (
         <details className="detail-block">

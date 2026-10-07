@@ -1758,6 +1758,37 @@ button:disabled {
   line-height: 1.55;
 }
 
+.next-action-card {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background:
+    radial-gradient(circle at 10% -20%, rgba(217, 161, 92, 0.14), transparent 45%),
+    color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+}
+
+.delta-card {
+  display: grid;
+  gap: 6px;
+}
+
+.delta-value {
+  margin: 0;
+  font-family: Newsreader, Georgia, serif;
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  line-height: 1;
+}
+
+.delta-value.up {
+  color: #86d7a5;
+}
+
+.delta-value.down {
+  color: #e07a5f;
+}
+
+.delta-value.flat {
+  color: var(--muted);
+}
+
 .practice-guide {
   margin-top: 22px;
   padding: 16px 18px;
@@ -1945,6 +1976,15 @@ button:disabled {
 
 .focus-actions {
   margin-top: 12px;
+}
+
+.wake-note {
+  text-align: center;
+}
+
+.mic-help-card {
+  margin-top: 20px;
+  border-style: dashed;
 }
 
 .detail-block {

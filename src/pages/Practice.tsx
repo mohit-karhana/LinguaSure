@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useScreenWakeLock } from "../hooks/useWakeLock";
 import { useVoiceSession } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
 import { asMetricKey, learningGuide, metricFromChapter } from "../lib/learning";
@@ -73,6 +74,17 @@ function quickStartSteps(live: boolean, turn: keyof typeof TURN_LABEL) {
     "Say the headline first.",
     "Add one detail only.",
   ];
+}
+
+function isMicrophoneIssue(value: string | null) {
+  if (!value) return false;
+  const note = value.toLowerCase();
+  return (
+    note.includes("microphone") ||
+    note.includes("permission") ||
+    note.includes("secure context") ||
+    note.includes("no microphone")
+  );
 }
 
 export default function Practice() {
@@ -168,9 +180,11 @@ function LivePractice({
       onTimeUp: () => finishRef.current(),
     });
   const live = status === "live";
+  const wakeLock = useScreenWakeLock(status === "connecting" || live);
   const focus = session.focus ?? searchParams.get("focus");
   const focusMessage = focusHint(focus);
   const isDrill = session.kind === "drill";
+  const micIssue = Boolean(micHint) || isMicrophoneIssue(error);
   const guideMetric = asMetricKey(focus) || metricFromChapter(session.chapter.id);
   const guide = learningGuide(guideMetric);
 
@@ -356,6 +370,41 @@ function LivePractice({
           </button>
         )}
       </div>
+
+      {status === "connecting" || live ? (
+        <p className="micro-note wake-note">
+          {wakeLock.supported
+            ? wakeLock.active
+              ? "Screen lock is paused while this call is live."
+              : "Keeping your screen awake for this live call…"
+            : "This browser cannot keep the screen awake automatically. Keep this tab active while talking."}
+        </p>
+      ) : null}
+
+      {!live && micIssue ? (
+        <section className="profile-card mic-help-card">
+          <h2>Microphone setup</h2>
+          <ol className="starter-steps">
+            <li>
+              <span className="step-index">1</span>
+              <span>Use Chrome, Edge, or Safari.</span>
+            </li>
+            <li>
+              <span className="step-index">2</span>
+              <span>Allow microphone access in the address bar.</span>
+            </li>
+            <li>
+              <span className="step-index">3</span>
+              <span>Retry Start talking.</span>
+            </li>
+          </ol>
+          <div className="controls" style={{ justifyContent: "flex-start" }}>
+            <button type="button" className="ghost compact" onClick={() => window.location.reload()}>
+              Retry microphone
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {micHint ? <p className="error">{micHint}</p> : null}
       {error && error !== micHint ? <p className="error">{error}</p> : null}
