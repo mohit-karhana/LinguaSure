@@ -119,7 +119,7 @@ export default function Debrief() {
     return (
       <main className="stage">
         <p className="error">{error}</p>
-        <Link to="/">Back</Link>
+        <Link to="/app">Back</Link>
       </main>
     );
   }

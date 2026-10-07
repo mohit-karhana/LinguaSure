@@ -77,7 +77,7 @@ export default function Practice() {
     return (
       <main className="stage">
         <p className="error">{loadError}</p>
-        <Link to="/">Back to situations</Link>
+        <Link to="/app">Back to situations</Link>
       </main>
     );
   }
@@ -178,7 +178,7 @@ function LivePractice({
     if (live && !window.confirm("Leave without scoring? The call will end.")) return;
     stop();
     void api.abandon(session.id).catch(() => {});
-    navigate("/");
+    navigate("/app");
   }
 
   async function changeMode(mode: DifficultyMode) {
