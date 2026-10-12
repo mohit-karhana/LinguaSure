@@ -1,0 +1,43 @@
+[0:v]trim=start=1.0:duration=5.133,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.05:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.12,fade=t=out:st=5.00:d=0.13,setsar=1[v0];
+[1:v]trim=start=4.6:duration=1.133,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:2000:0,fps=30,eq=saturation=1.06:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.06,fade=t=out:st=1.06:d=0.07,setsar=1[v1];
+[2:v]trim=start=3.0:duration=0.967,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.06:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.05,fade=t=out:st=0.90:d=0.06,setsar=1[v2];
+[3:v]trim=start=3.2:duration=1.767,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:220:0,fps=30,eq=saturation=1.06:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.06,fade=t=out:st=1.68:d=0.08,setsar=1[v3];
+[4:v]trim=start=0.35:duration=3.667,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.04:contrast=1.05,format=yuv420p,fade=t=in:st=0:d=0.10,fade=t=out:st=3.52:d=0.14,setsar=1[v4];
+[5:v]trim=start=0.5:duration=4.733,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.06:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.12,fade=t=out:st=4.58:d=0.15,setsar=1[v5];
+[6:v]scale=1240:2204,zoompan=z='if(eq(on,0),1.0,min(1.06,zoom+0.00038))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=158:s=1080x1920:fps=30,format=yuv420p,fade=t=in:st=0:d=0.16,fade=t=out:st=5.08:d=0.18,setsar=1[v6];
+[7:v]trim=start=1.1:duration=2.000,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.05:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.08,fade=t=out:st=1.88:d=0.12,setsar=1[v7];
+[4:v]trim=start=8.2:duration=2.333,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.04:contrast=1.05,format=yuv420p,fade=t=in:st=0:d=0.08,fade=t=out:st=2.20:d=0.12,setsar=1[v8];
+[7:v]trim=start=8.4:duration=2.500,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.05:contrast=1.04,format=yuv420p,fade=t=in:st=0:d=0.08,fade=t=out:st=2.36:d=0.13,setsar=1[v9];
+[8:v]trim=start=1.4:duration=5.233,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.03,format=yuv420p,fade=t=in:st=0:d=0.14,fade=t=out:st=5.06:d=0.16,setsar=1[v10];
+[9:v]scale=1240:2204,zoompan=z='if(eq(on,0),1.02,max(1.0,zoom-0.00012))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=158:s=1080x1920:fps=30,format=yuv420p,fade=t=in:st=0:d=0.25,setsar=1[v11];
+
+[v0][v1][v2][v3][v4][v5][v6][v7][v8][v9][v10][v11]concat=n=12:v=1:a=0[base];
+
+[base]drawbox=x=0:y=0:w=1080:h=168:color=black@0.38:t=fill:enable='lt(t,17.38)+between(t,22.65,34.72)',
+drawbox=x=0:y=1340:w=1080:h=580:color=black@0.52:t=fill:enable='lt(t,17.38)+between(t,22.65,34.72)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='LINGUASURE':fontcolor=#F3C47D:fontsize=40:x=72:y=52:enable='lt(t,17.38)+between(t,22.65,34.72)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='Live speaking practice':fontcolor=#E5D2BC:fontsize=26:x=72:y=102:enable='lt(t,17.38)+between(t,22.65,34.72)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Here’s the biggest problem':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1468:borderw=2:bordercolor=black@0.35:enable='between(t,0,2.28)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='with learning a language.':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1548:borderw=2:bordercolor=black@0.35:enable='between(t,0,2.28)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Understand English':fontcolor=#F3C47D:fontsize=64:x=(w-text_w)/2:y=1448:borderw=2:bordercolor=black@0.4:enable='between(t,2.35,5.08)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='≠  Speak English':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1540:borderw=2:bordercolor=black@0.4:enable='between(t,2.35,5.08)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='You watch videos.':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=1520:borderw=2:bordercolor=black@0.35:enable='between(t,5.13,6.22)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='You learn grammar.':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=1520:borderw=2:bordercolor=black@0.35:enable='between(t,6.26,7.18)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='You memorise hundreds of words.':fontcolor=white:fontsize=46:x=(w-text_w)/2:y=1520:borderw=2:bordercolor=black@0.35:enable='between(t,7.23,8.92)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='But when someone':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=1468:borderw=2:bordercolor=black@0.35:enable='between(t,8.98,11.02)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='actually talks to you…':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=1548:borderw=2:bordercolor=black@0.35:enable='between(t,8.98,11.02)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='…you don’t know what to say.':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=1516:borderw=2:bordercolor=black@0.35:enable='between(t,11.10,12.62)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Speaking is a skill':fontcolor=#F3C47D:fontsize=62:x=(w-text_w)/2:y=1460:borderw=2:bordercolor=black@0.4:enable='between(t,12.70,17.30)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='you practice.':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=1550:borderw=2:bordercolor=black@0.4:enable='between(t,12.70,17.30)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='That’s why we built LinguaSure.':fontcolor=white:fontsize=46:x=(w-text_w)/2:y=1688:borderw=2:bordercolor=black@0.45:enable='between(t,17.50,20.05)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Practice speaking it.':fontcolor=#F3C47D:fontsize=52:x=(w-text_w)/2:y=1680:borderw=2:bordercolor=black@0.45:enable='between(t,20.15,22.55)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Speak.':fontcolor=white:fontsize=68:x=(w-text_w)/2:y=1500:borderw=2:bordercolor=black@0.35:enable='between(t,22.70,23.50)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Make mistakes.':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1504:borderw=2:bordercolor=black@0.35:enable='between(t,23.85,24.60)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Learn from them.':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=1508:borderw=2:bordercolor=black@0.35:enable='between(t,24.95,25.82)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='And speak again.':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=1508:borderw=2:bordercolor=black@0.35:enable='between(t,25.90,26.95)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Not perfect on day one.':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1512:borderw=2:bordercolor=black@0.35:enable='between(t,27.05,29.42)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Less hesitation.':fontcolor=#F3C47D:fontsize=64:x=(w-text_w)/2:y=1460:borderw=2:bordercolor=black@0.4:enable='between(t,29.55,34.60)',
+drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='More conversation.':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1552:borderw=2:bordercolor=black@0.4:enable='between(t,29.55,34.60)',
+setsar=1[v];
+
+[10:a]aformat=sample_fmts=fltp:channel_layouts=stereo,aresample=48000,volume=2.3,alimiter=limit=0.92,apad=whole_dur=40,atrim=0:40,asetpts=PTS-STARTPTS[a]

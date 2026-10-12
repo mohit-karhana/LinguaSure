@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Practice from "./pages/Practice";
+import Analytics from "./pages/Analytics";
 import "./App.css";
 
 function RequireAuth() {
@@ -49,6 +50,7 @@ export default function App({ googleClientId }: { googleClientId: string }) {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login googleClientId={googleClientId} />} />
+      <Route path="/analytics" element={<Analytics />} />
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
           <Route path="/app" element={<Home />} />

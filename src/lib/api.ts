@@ -1,5 +1,8 @@
+import { analyticsVisitorId } from "./analytics";
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
+  headers.set("X-Visitor-Id", analyticsVisitorId());
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -17,7 +20,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  config: () => request<{ googleClientId: string }>("/api/config"),
+  config: () => request<{ googleClientId: string; metaPixelId: string }>("/api/config"),
   me: () => request<import("./types").MeResponse>("/api/me"),
   login: (credential: string) =>
     request<{ user: import("./types").User }>("/api/auth/google", {
@@ -108,5 +111,15 @@ export const api = {
     request<{ session: import("./types").PracticeSession }>(`/api/sessions/${id}/complete`, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+  analytics: (key: string, days = 30) =>
+    request<import("./types").AnalyticsReport>(`/api/admin/analytics?days=${days}`, {
+      headers: { "X-Analytics-Key": key },
+    }),
+  saveAnalyticsSpend: (key: string, campaign: string, amount: number) =>
+    request<{ ok: true }>("/api/admin/analytics/spend", {
+      method: "POST",
+      headers: { "X-Analytics-Key": key },
+      body: JSON.stringify({ campaign, amount }),
     }),
 };

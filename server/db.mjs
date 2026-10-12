@@ -59,6 +59,36 @@ db.exec(`
     UNIQUE (user_id, week_start),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS analytics_events (
+    id TEXT PRIMARY KEY,
+    event_name TEXT NOT NULL,
+    visitor_id TEXT NOT NULL,
+    user_id TEXT,
+    source TEXT,
+    medium TEXT,
+    campaign TEXT,
+    content TEXT,
+    term TEXT,
+    fbclid TEXT,
+    path TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_analytics_created
+    ON analytics_events (created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_analytics_campaign
+    ON analytics_events (campaign, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_analytics_visitor
+    ON analytics_events (visitor_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS analytics_spend (
+    campaign TEXT PRIMARY KEY,
+    amount REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  );
 `);
 
 migrateUsers();

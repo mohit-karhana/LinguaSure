@@ -1,5 +1,7 @@
+import { useEffect, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { trackMarketingEvent } from "../lib/analytics";
 
 const PILLARS = [
   {
@@ -204,8 +206,20 @@ export default function Landing() {
   const secondaryLabel = user ? "View my progress history" : "See how a session works";
   const secondaryHref = user ? "/history" : "#how";
 
+  useEffect(() => {
+    trackMarketingEvent("landing_view");
+  }, []);
+
+  function trackCta(event: MouseEvent<HTMLElement>) {
+    const link = (event.target as HTMLElement).closest("a");
+    if (!link || link.getAttribute("href") !== "/login") return;
+    trackMarketingEvent("cta_click", {
+      label: link.textContent?.trim() || "unknown",
+    });
+  }
+
   return (
-    <main className="landing">
+    <main className="landing" onClickCapture={trackCta}>
       <header className="landing-topbar">
         <Link to="/" className="brand-link">
           LinguaSure

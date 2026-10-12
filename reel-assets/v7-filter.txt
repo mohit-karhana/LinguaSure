@@ -1,0 +1,25 @@
+[0:v]scale=1240:2200,zoompan=z='if(eq(on,0),1.00,min(1.10,zoom+0.0013))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=69:s=1080x1920,fps=30,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.08:d=0.22,setsar=1[v0];
+[1:v]trim=start=6:end=8.3,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.03,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.08:d=0.22,setsar=1[v1];
+[2:v]trim=start=1.4:end=3.7,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.03,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.08:d=0.22,setsar=1[v2];
+[3:v]trim=start=4:end=6.3,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.03,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.08:d=0.22,setsar=1[v3];
+[4:v]trim=start=8:end=10.3,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.03,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.08:d=0.22,setsar=1[v4];
+[5:v]scale=1240:2200,zoompan=z='if(eq(on,0),1.05,max(0.97,zoom-0.0011))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=72:s=1080x1920,fps=30,format=yuv420p,fade=t=in:st=0:d=0.15,fade=t=out:st=2.18:d=0.22,setsar=1[v5];
+
+[v0][v1][v2][v3][v4][v5]concat=n=6:v=1:a=0[base];
+[6:v]scale=164:164[badge];
+
+[base][badge]overlay=x=890:y=48:format=auto[story];
+
+[story]drawbox=x=0:y=0:w=1080:h=150:color=black@0.24:t=fill,
+      drawbox=x=0:y=1370:w=1080:h=550:color=black@0.48:t=fill,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='LINGUASURE':fontcolor=#F3C47D:fontsize=42:x=72:y=44,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='AI speaking coach':fontcolor=#E5D2BC:fontsize=26:x=72:y=92,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Freeze in interviews?':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1488:enable='between(t,0,2.3)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Even when you know the answer?':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=1488:enable='between(t,2.3,4.6)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Practice real interview situations.':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=1488:enable='between(t,4.6,6.9)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Get instant score + weak-skill focus.':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=1488:enable='between(t,6.9,9.2)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='2-min drill and confident retry.':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=1488:enable='between(t,9.2,11.5)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Start free today @linguasure':fontcolor=#F3C47D:fontsize=54:x=(w-text_w)/2:y=1484:enable='between(t,11.5,13.9)',
+      setsar=1[v];
+
+[7:a]volume=2.0,atrim=0:13.9,asetpts=PTS-STARTPTS[a]

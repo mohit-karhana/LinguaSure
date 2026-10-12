@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useScreenWakeLock } from "../hooks/useWakeLock";
 import { useVoiceSession } from "../hooks/useVoiceSession";
 import { api } from "../lib/api";
+import { trackAssessmentCompleted } from "../lib/analytics";
 import { asMetricKey, learningGuide, metricFromChapter } from "../lib/learning";
 import { microphoneHint } from "../lib/microphone";
 import type { DifficultyMode, PracticeSession } from "../lib/types";
@@ -212,6 +213,7 @@ function LivePractice({
     try {
       scoredRef.current = true;
       await api.complete(session.id, payload);
+      if (session.kind === "assessment") trackAssessmentCompleted();
       navigate(`/debrief/${session.id}`);
     } catch (caught) {
       scoredRef.current = false;

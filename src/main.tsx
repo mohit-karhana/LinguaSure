@@ -5,20 +5,24 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./hooks/useAuth";
 import { api } from "./lib/api";
+import { initMetaPixel } from "./lib/analytics";
 import { redirectInsecureLoopback } from "./lib/microphone";
 import "./index.css";
 
 function Root() {
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [config, setConfig] = useState<{ googleClientId: string; metaPixelId: string } | null>(null);
 
   useEffect(() => {
     api
       .config()
-      .then((config) => setClientId(config.googleClientId || ""))
-      .catch(() => setClientId(""));
+      .then((next) => {
+        initMetaPixel(next.metaPixelId);
+        setConfig(next);
+      })
+      .catch(() => setConfig({ googleClientId: "", metaPixelId: "" }));
   }, []);
 
-  if (clientId === null) {
+  if (config === null) {
     return (
       <main className="stage">
         <p className="empty">Starting LinguaSure…</p>
@@ -29,12 +33,16 @@ function Root() {
   const tree = (
     <BrowserRouter>
       <AuthProvider>
-        <App googleClientId={clientId} />
+        <App googleClientId={config.googleClientId} />
       </AuthProvider>
     </BrowserRouter>
   );
 
-  return clientId ? <GoogleOAuthProvider clientId={clientId}>{tree}</GoogleOAuthProvider> : tree;
+  return config.googleClientId ? (
+    <GoogleOAuthProvider clientId={config.googleClientId}>{tree}</GoogleOAuthProvider>
+  ) : (
+    tree
+  );
 }
 
 if (!redirectInsecureLoopback()) {

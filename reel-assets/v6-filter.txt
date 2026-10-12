@@ -1,0 +1,22 @@
+[0:v]scale=1220:2160,zoompan=z='if(eq(on,0),1.00,min(1.10,zoom+0.0011))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=85:s=1080x1920,fps=30,format=yuv420p[s0];
+[1:v]scale=1220:2160,zoompan=z='if(eq(on,0),1.05,max(0.97,zoom-0.0009))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=85:s=1080x1920,fps=30,format=yuv420p[s1];
+[2:v]scale=1220:2160,zoompan=z='if(eq(on,0),1.00,min(1.09,zoom+0.0010))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=85:s=1080x1920,fps=30,format=yuv420p[s2];
+[3:v]scale=1220:2160,zoompan=z='if(eq(on,0),1.06,max(0.98,zoom-0.00095))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=85:s=1080x1920,fps=30,format=yuv420p[s3];
+[4:v]scale=1220:2160,zoompan=z='if(eq(on,0),1.00,min(1.10,zoom+0.0011))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=85:s=1080x1920,fps=30,format=yuv420p[s4];
+[s0][s1][s2][s3][s4]concat=n=5:v=1:a=0[base];
+
+[base]drawbox=x=0:y=0:w=1080:h=162:color=black@0.28:t=fill,
+      drawbox=x=0:y=1320:w=1080:h=600:color=black@0.46:t=fill,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='LINGUASURE':fontcolor=#F3C47D:fontsize=42:x=(w-text_w)/2:y=52,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='Built for interview confidence':fontcolor=#EAD8C3:fontsize=28:x=(w-text_w)/2:y=100,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='This was me before interviews.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1456:enable='between(t,0,2.82)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='I knew my work.':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=1446:enable='between(t,2.82,5.64)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='But I froze while speaking English.':fontcolor=#F3E4CF:fontsize=44:x=(w-text_w)/2:y=1536:enable='between(t,2.82,5.64)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='If this feels like you,':fontcolor=white:fontsize=60:x=(w-text_w)/2:y=1446:enable='between(t,5.64,8.46)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='you are not alone.':fontcolor=#F3E4CF:fontsize=46:x=(w-text_w)/2:y=1536:enable='between(t,5.64,8.46)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Practice real situations.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1446:enable='between(t,8.46,11.28)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='Score. Drill. Retry.':fontcolor=#F3E4CF:fontsize=46:x=(w-text_w)/2:y=1536:enable='between(t,8.46,11.28)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Speak calm. Speak confident.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1438:enable='between(t,11.28,14.1)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='Start free @linguasure':fontcolor=#F3C47D:fontsize=48:x=(w-text_w)/2:y=1528:enable='between(t,11.28,14.1)',setsar=1[v];
+
+[5:a]volume=2.0,atrim=0:14.1,asetpts=PTS-STARTPTS[a]

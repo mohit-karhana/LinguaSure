@@ -90,6 +90,26 @@ npm run dev
 
 Users, transcripts, and scores are stored in local SQLite at `data/linguasure.sqlite`.
 
+## Instagram ad analytics
+
+The app includes a first-party funnel dashboard at `/analytics`. It tracks:
+
+`landing visitor → CTA click → signup → assessment started → assessment completed`
+
+Before launching ads:
+
+1. Set a long `ANALYTICS_ADMIN_KEY` in `.env`.
+2. Optionally set `META_PIXEL_ID` to send PageView, Lead, CompleteRegistration, and AssessmentCompleted events to Meta.
+3. Use a tagged URL for every ad creative:
+
+```text
+https://your-domain.example/?utm_source=instagram&utm_medium=paid_social&utm_campaign=oct_interview&utm_content=reel_v8
+```
+
+4. Open `https://your-domain.example/analytics`, enter the admin key, and add campaign spend in INR. The dashboard shows signup cost, completed-assessment cost, and marks a campaign on/below target after 100 visitors.
+
+Attribution is first-touch and remains attached through account creation and the first assessment. Change `ANALYTICS_TARGET_COMPLETION_RATE` if your target differs from the default 5%.
+
 ## Go live
 
 Browsers only allow the microphone on **localhost** or **HTTPS**. Putting the container on a raw `http://` IP will load the page, but **Start talking** will fail.

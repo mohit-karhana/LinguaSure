@@ -1,0 +1,28 @@
+[0:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2+42*sin(t*1.4)':y='(in_h-out_h)/2+34*cos(t*1.1)',fps=30,format=yuv420p[s0];
+[1:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2-38*sin(t*1.5)':y='(in_h-out_h)/2+30*cos(t*1.2)',fps=30,format=yuv420p[s1];
+[2:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2+40*sin(t*1.3)':y='(in_h-out_h)/2-32*cos(t*1.4)',fps=30,format=yuv420p[s2];
+[3:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2-35*sin(t*1.2)':y='(in_h-out_h)/2+28*cos(t*1.3)',fps=30,format=yuv420p[s3];
+[4:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2+36*sin(t*1.6)':y='(in_h-out_h)/2-28*cos(t*1.0)',fps=30,format=yuv420p[s4];
+[5:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2-36*sin(t*1.1)':y='(in_h-out_h)/2+26*cos(t*1.6)',fps=30,format=yuv420p[s5];
+[6:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2+34*sin(t*1.7)':y='(in_h-out_h)/2-22*cos(t*1.2)',fps=30,format=yuv420p[s6];
+[7:v]scale=1260:2240,crop=1080:1920:x='(in_w-out_w)/2-30*sin(t*1.3)':y='(in_h-out_h)/2+24*cos(t*1.5)',fps=30,format=yuv420p[s7];
+
+[s0][s1][s2][s3][s4][s5][s6][s7]concat=n=8:v=1:a=0[base];
+
+[base]drawbox=x=0:y=0:w=1080:h=160:color=black@0.26:t=fill,
+      drawbox=x=0:y=1320:w=1080:h=600:color=black@0.45:t=fill,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='LINGUASURE':fontcolor=#F3C47D:fontsize=44:x=(w-text_w)/2:y=56,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='AI speaking coach':fontcolor=#E9D7C2:fontsize=28:x=(w-text_w)/2:y=106,
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Tell me about yourself.':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=1458:enable='between(t,0,2.3)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='...and your mind goes blank.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1458:enable='between(t,2.3,4.6)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='You know English.':fontcolor=white:fontsize=62:x=(w-text_w)/2:y=1458:enable='between(t,4.6,6.9)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='But freeze under pressure.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1458:enable='between(t,6.9,9.2)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='I built LinguaSure for this.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1458:enable='between(t,9.2,11.5)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Practice real interview situations.':fontcolor=white:fontsize=54:x=(w-text_w)/2:y=1458:enable='between(t,11.5,13.8)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Get score + 2-minute drill.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1458:enable='between(t,13.8,16.1)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial\ Bold.ttf:text='Speak calm. Speak confident.':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1450:enable='between(t,16.1,18.35)',
+      drawtext=fontfile=/System/Library/Fonts/Supplemental/Arial.ttf:text='Start free @linguasure':fontcolor=#F3C47D:fontsize=48:x=(w-text_w)/2:y=1538:enable='between(t,16.1,18.35)'[v];
+
+[8:a]volume=2.2,atrim=0:18.35,asetpts=PTS-STARTPTS[voice];
+[9:a]volume=0.015,atrim=0:18.35[bed];
+[voice][bed]amix=inputs=2:weights='1 0.45':normalize=0,alimiter=limit=0.95[a]

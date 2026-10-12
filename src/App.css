@@ -8,6 +8,131 @@
   padding-bottom: 90px;
 }
 
+.analytics-page {
+  padding-bottom: 60px;
+}
+
+.analytics-unlock {
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  margin: 24px 0;
+}
+
+.analytics-unlock label {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.analytics-period {
+  display: flex;
+  gap: 8px;
+}
+
+.analytics-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.analytics-kpis article {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+}
+
+.analytics-kpis strong {
+  font-size: 1.55rem;
+}
+
+.analytics-kpis span,
+.analytics-table small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.analytics-table-wrap {
+  overflow-x: auto;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1050px;
+}
+
+.analytics-table th,
+.analytics-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.analytics-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-table td:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.spend-editor {
+  display: flex;
+  gap: 6px;
+}
+
+.spend-editor input {
+  width: 90px;
+  padding: 7px;
+}
+
+.analytics-status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--accent-soft);
+}
+
+.analytics-status.is-on_target {
+  color: #237044;
+  background: #dff4e8;
+}
+
+.analytics-status.is-below_target {
+  color: #9d342f;
+  background: #fae2df;
+}
+
+@media (max-width: 800px) {
+  .analytics-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analytics-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .landing-topbar {
   display: flex;
   align-items: center;

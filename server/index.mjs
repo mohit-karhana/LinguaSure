@@ -30,6 +30,14 @@ import {
 } from "./programs.mjs";
 import { weeklyReport } from "./report.mjs";
 import { buildScorecard, scoreAcoustic, scoreWithModel, summarizeProfile } from "./score.mjs";
+import {
+  analyticsReport,
+  PUBLIC_EVENTS,
+  recordEvent,
+  requireAnalyticsAdmin,
+  saveCampaignSpend,
+  visitorId,
+} from "./analytics.mjs";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -211,7 +219,47 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/config", (_req, res) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+    metaPixelId: process.env.META_PIXEL_ID || "",
   });
+});
+
+app.post(
+  "/api/analytics/event",
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 120,
+    message: "Analytics event limit reached.",
+  }),
+  (req, res) => {
+  const eventName = String(req.body?.eventName || "");
+  const id = visitorId(req);
+  if (!id || !PUBLIC_EVENTS.has(eventName)) {
+    res.status(400).json({ error: "Invalid analytics event." });
+    return;
+  }
+  recordEvent({
+    eventName,
+    visitorId: id,
+    userId: req.session?.userId || null,
+    attribution: req.body?.attribution,
+    path: req.body?.path,
+    metadata: req.body?.metadata,
+  });
+  res.status(202).json({ ok: true });
+  },
+);
+
+app.get("/api/admin/analytics", requireAnalyticsAdmin, (req, res) => {
+  res.json(analyticsReport(req.query.days));
+});
+
+app.post("/api/admin/analytics/spend", requireAnalyticsAdmin, (req, res) => {
+  try {
+    saveCampaignSpend(req.body?.campaign, req.body?.amount);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid spend." });
+  }
 });
 
 app.post(
@@ -265,6 +313,15 @@ app.post(
     }
     const user = selectUserByGoogle.get(payload.sub) || selectUserByEmail.get(email);
     req.session.userId = user.id;
+    if (!existing) {
+      recordEvent({
+        eventName: "signup_completed",
+        visitorId: visitorId(req),
+        userId: user.id,
+        path: "/login",
+        metadata: { method: "google" },
+      });
+    }
     res.json({ user: publicUser(user) });
   } catch (error) {
     console.error("Google sign-in failed", error);
@@ -335,6 +392,13 @@ app.post(
       created_at: new Date().toISOString(),
     });
     req.session.userId = id;
+    recordEvent({
+      eventName: "signup_completed",
+      visitorId: visitorId(req),
+      userId: id,
+      path: "/login",
+      metadata: { method: "password" },
+    });
     res.status(201).json({ user: publicUser(selectUserById.get(id)) });
   } catch (error) {
     console.error("Signup failed", error);
@@ -669,6 +733,15 @@ app.post(
     kind,
     focus,
   });
+  if (kind === "assessment") {
+    recordEvent({
+      eventName: "assessment_started",
+      visitorId: visitorId(req),
+      userId: req.user.id,
+      path: "/app",
+      metadata: { sessionId: id },
+    });
+  }
   res.status(201).json({
     session: publicSession(selectSession.get(id), { instructions: true, scored }),
   });
@@ -848,6 +921,15 @@ app.post("/api/sessions/:id/complete", requireUser, async (req, res) => {
       next_focus: scores.nextFocus,
       overall: scores.overall,
     });
+    if (row.chapter_id === ASSESSMENT_ID) {
+      recordEvent({
+        eventName: "assessment_completed",
+        visitorId: visitorId(req),
+        userId: req.user.id,
+        path: `/debrief/${row.id}`,
+        metadata: { sessionId: row.id, overall: scores.overall },
+      });
+    }
     res.json({ session: publicSession(selectSession.get(row.id)) });
   } catch (error) {
     console.error("Session scoring failed", error);
@@ -864,6 +946,15 @@ app.post("/api/sessions/:id/complete", requireUser, async (req, res) => {
       next_focus: scores.nextFocus,
       overall: scores.overall,
     });
+    if (row.chapter_id === ASSESSMENT_ID) {
+      recordEvent({
+        eventName: "assessment_completed",
+        visitorId: visitorId(req),
+        userId: req.user.id,
+        path: `/debrief/${row.id}`,
+        metadata: { sessionId: row.id, overall: scores.overall },
+      });
+    }
     res.json({ session: publicSession(selectSession.get(row.id)) });
   }
 });

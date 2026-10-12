@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { trackMarketingEvent, trackSignupCompleted } from "../lib/analytics";
 
 const VALUE_POINTS = [
   "Practice real interview, meeting, and client scenarios.",
@@ -23,6 +24,10 @@ export default function Login({ googleClientId: _googleClientId }: { googleClien
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    trackMarketingEvent("login_view");
+  }, []);
+
   if (user) return <Navigate to="/app" replace />;
 
   function switchMode(nextMode: "signin" | "signup") {
@@ -36,7 +41,9 @@ export default function Login({ googleClientId: _googleClientId }: { googleClien
     setError(null);
     try {
       if (mode === "signup") {
+        trackMarketingEvent("signup_started");
         await signup(name, email, password);
+        trackSignupCompleted();
       } else {
         await loginWithPassword(email, password);
       }

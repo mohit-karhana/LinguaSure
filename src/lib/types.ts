@@ -210,3 +210,34 @@ export type SessionTimings = {
   speakingMs: number;
   latenciesMs: number[];
 };
+
+export type AnalyticsCampaign = {
+  campaign: string;
+  source: string;
+  medium: string;
+  visitors: number;
+  cta_clicks: number;
+  signups: number;
+  starts: number;
+  completions: number;
+  spend: number;
+  signupRate: number;
+  completionRate: number;
+  costPerSignup: number | null;
+  costPerCompletion: number | null;
+  status: "collecting" | "on_target" | "below_target";
+};
+
+export type AnalyticsReport = {
+  days: number;
+  targetRate: number;
+  totals: {
+    visitors: number;
+    ctaClicks: number;
+    signups: number;
+    starts: number;
+    completions: number;
+    spend: number;
+  };
+  campaigns: AnalyticsCampaign[];
+};
